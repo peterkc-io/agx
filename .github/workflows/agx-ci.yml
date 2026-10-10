@@ -18,6 +18,15 @@ on:
   # A pushed wip/** branch runs the check without touching main.
   push:
     branches: ["wip/**"]
+  pull_request:
+    branches: [main]
+  workflow_call:
+    inputs:
+      merge-upstream:
+        description: "Upstream head to merge into main before checks (empty checks the current ref)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       runner:
@@ -37,7 +46,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: agx-ci-${{ github.ref }}
+  group: agx-ci-${{ github.ref }}-${{ inputs.merge-upstream }}
   cancel-in-progress: true
 
 env:
@@ -55,6 +64,21 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: ${{ inputs.merge-upstream != '' && 'main' || github.ref }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Check the upstream seam ledger
+        run: |
+          git fetch --no-tags origin refs/heads/upstream-main:refs/remotes/origin/upstream-main
+          python3 scripts/agx/check_seams.py --base origin/upstream-main
       - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin; the SHA selects the toolchain
         with:
           components: rustfmt, clippy
