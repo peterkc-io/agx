@@ -33,11 +33,13 @@ fn record_with_file(child_id: &str, session_file: &Path) -> Arc<Mutex<ChildRecor
         active_session_id: "child-live".to_string(),
         session_id: None,
         session_dir: String::new(),
+        model: String::new(),
         label: "child".to_string(),
         started_at_ms: 0,
         settled_status: None,
         settled: false,
         answer_preview: None,
+        answer_text: None,
         answer_captured: false,
         replied_since_task: false,
         notice_delivered: false,
@@ -49,6 +51,8 @@ fn record_with_file(child_id: &str, session_file: &Path) -> Arc<Mutex<ChildRecor
         usage_watch_live: false,
         usage_rearm: false,
         emit_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+        last_emitted_status: None,
+        rename_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
     }))
 }
 
@@ -68,25 +72,21 @@ fn registry(agent_dir: &Path) -> SupervisorChildSessions {
 }
 
 /// A child session file: the task prompt (first user row) plus the
-/// captured completion (50,208 input + 2,929 output, $0.0089957 — the
-/// branch-verified TS fixture row's child usage).
+/// captured completion (the branch-verified TS fixture row's child usage).
 fn child_file(dir: &Path) -> PathBuf {
     let path = dir.join("child.jsonl");
     std::fs::write(
         &path,
         concat!(
             r#"{"type":"session","id":"child-1","timestamp":"2026-09-23T00:00:00.000Z","cwd":"/tmp","version":3}"#, "\n",
-            r#"{"type":"message","id":"u1","parentId":null,"timestamp":"2026-09-23T00:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"the task"}],"timestamp":0}}"#, "\n",
-            r#"{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-09-23T00:00:02.000Z","message":{"role":"assistant","content":[],"stopReason":"toolUse","usage":{"input":50208,"output":2929,"cacheRead":0,"cacheWrite":0,"totalTokens":53137,"cost":{"input":0.0075312,"output":0.0014645,"cacheRead":0,"cacheWrite":0,"total":0.0089957}}}}"#, "\n",
+            r#"{"type":"custom_message","id":"c0","parentId":null,"timestamp":"2026-09-23T00:00:01.000Z","customType":"agent_message","content":"[task from parent]\n\nthe task","display":true,"details":{"id":"spawn:child-1","message":"the task"}}"#, "\n",
+            r#"{"type":"message","id":"a1","parentId":"c0","timestamp":"2026-09-23T00:00:02.000Z","message":{"role":"assistant","content":[],"stopReason":"toolUse","usage":{"input":50208,"output":2929,"cacheRead":0,"cacheWrite":0,"totalTokens":53137,"cost":{"input":0.0075312,"output":0.0014645,"cacheRead":0,"cacheWrite":0,"total":0.0089957}}}}"#, "\n",
         ),
     )
     .unwrap();
     path
 }
 
-/// One emit reads the child's rows past the cursor, delivers the
-/// per-origin report, and consumes the rows; a second emit delivers
-/// nothing (no double billing).
 #[tokio::test]
 async fn emit_reads_once_and_advances_the_cursor() {
     let tmp = tempfile::tempdir().unwrap();
@@ -110,15 +110,12 @@ async fn emit_reads_once_and_advances_the_cursor() {
     let consumed = record.lock().await.attributed_rows;
     assert!(consumed.is_some_and(|rows| rows > 0));
 
-    // The cursor consumed the rows: nothing re-delivers.
     sessions.inner.emit_child_usage(&record).await;
     let reports = sink.0.lock().expect("reports lock").clone();
     assert_eq!(reports.len(), 1);
     assert_eq!(record.lock().await.attributed_rows, consumed);
 }
 
-/// Without a wired sink nothing is read or consumed: the rows stay
-/// attributable once the producer is wired.
 #[tokio::test]
 async fn emit_without_a_sink_consumes_nothing() {
     let tmp = tempfile::tempdir().unwrap();
@@ -130,9 +127,6 @@ async fn emit_without_a_sink_consumes_nothing() {
     assert_eq!(record.lock().await.attributed_rows, Some(0));
 }
 
-/// A record without a session file (the test seam's shape) observes
-/// nothing, and a missing file is a silent no-op (the child may not
-/// have materialized its file yet).
 #[tokio::test]
 async fn emit_tolerates_missing_and_absent_files() {
     let tmp = tempfile::tempdir().unwrap();

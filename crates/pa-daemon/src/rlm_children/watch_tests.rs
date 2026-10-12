@@ -11,8 +11,7 @@ use tokio::sync::mpsc;
 /// How the fake supervisor answers a child `kill`.
 enum FakeKill {
     Success,
-    /// The child session is gone (the route failure a supervisor
-    /// answers for a non-resident child).
+    /// The child session is gone (the route failure a supervisor answers for a non-resident child).
     UnknownSession,
     /// The kill fails for a real reason (a stuck worker).
     Failure,
@@ -25,6 +24,9 @@ enum FakeChild {
     Healthy,
     PromptFails,
     Unreachable,
+    /// The first `get_last_assistant_text` reads no text (the settle raced
+    /// the worker's answer hand-off); later reads answer it.
+    TextLate,
     /// The worker leaves right after the settle answer is captured:
     /// every later child read fails.
     LeavesAfterSettle,
@@ -177,11 +179,20 @@ async fn spawn_fake_supervisor(
                             if matches!(child, FakeChild::LeavesAfterSettle) {
                                 gone.store(true, Ordering::SeqCst);
                             }
-                            response_success(
-                                Some(&id),
-                                command_type,
-                                Some(json!({ "text": "the child final answer" })),
-                            )
+                            // Every answer read counts; the late-text
+                            // variant's FIRST read races the worker's
+                            // answer hand-off and reads no text (a None
+                            // capture), later reads answer.
+                            let reads = child_subagents.answer_reads.fetch_add(1, Ordering::SeqCst);
+                            if matches!(child, FakeChild::TextLate) && reads == 0 {
+                                response_success(Some(&id), command_type, Some(json!({})))
+                            } else {
+                                response_success(
+                                    Some(&id),
+                                    command_type,
+                                    Some(json!({ "text": "the child final answer" })),
+                                )
+                            }
                         }
                         "kill" => {
                             let _ = kill_tx.send(command.clone());
@@ -242,11 +253,14 @@ async fn sessions_with_fake_supervisor(
 
 /// The fake child's own subagents: whether one still runs (the child
 /// reports `hasRunningSubagents`, and a `waitForRlmQuiescence` idle wait
-/// holds until it finishes), and how many such waits started.
+/// holds until it finishes), how many such waits started, and how many
+/// `get_last_assistant_text` reads the child link answered (the
+/// late-text variant scripts its first read empty off the count).
 #[derive(Default)]
 struct FakeChildSubagents {
     running: AtomicBool,
     quiescent_waits: std::sync::atomic::AtomicUsize,
+    answer_reads: AtomicU32,
 }
 
 /// [`sessions_with_fake_supervisor`] whose child reports its own running
@@ -302,6 +316,7 @@ async fn spawn_child(sessions: &SupervisorChildSessions) -> RlmSpawnHandle {
             thinking: None,
             cell_source_code: None,
             spawned_by_request_id: None,
+            decision_child: false,
         })
         .await
         .expect("spawn must succeed against the fake supervisor")
@@ -329,8 +344,6 @@ async fn roster_snapshot_does_not_wait_for_a_slow_child_worker() {
     assert_eq!(roster[0].status, "running");
 }
 
-/// A child that settles without replying delivers the no-reply terminal
-/// notice to the parent session as an injected follow-up turn.
 #[tokio::test]
 async fn a_settled_child_without_a_reply_delivers_the_terminal_notice() {
     let (follow_up_tx, mut follow_up_rx) = mpsc::unbounded_channel();
@@ -394,6 +407,56 @@ async fn a_worker_leaving_inside_the_settle_grace_keeps_the_verdict() {
     assert!(notice["customMessage"]["content"]
         .as_str()
         .is_some_and(|content| content.contains("the child final answer")));
+}
+
+#[tokio::test]
+async fn child_updates_surface_through_the_sink() {
+    let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
+    let (sessions, _kill_rx) =
+        sessions_with_fake_supervisor(follow_up_tx, 0, FakeKill::Success, FakeChild::Healthy).await;
+    let rows: Arc<std::sync::Mutex<Vec<Value>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink_rows = Arc::clone(&rows);
+    sessions.set_child_update_sink(Arc::new(move |child| {
+        sink_rows.lock().unwrap().push(child);
+    }));
+    let settled = sessions.settle_notified();
+    let handle = spawn_child(&sessions).await;
+    sessions.notify_turn_done();
+    tokio::time::timeout(Duration::from_secs(10), settled)
+        .await
+        .expect("the child settles");
+    let result = sessions
+        .delete_subagent(handle.rlm_child_id.clone())
+        .await
+        .expect("the settled child deletes");
+    assert_eq!(result.outcome, Some("deleted"));
+    let rows = rows.lock().unwrap().clone();
+    assert!(
+        rows.iter().any(|row| {
+            row["id"] == json!(handle.rlm_child_id)
+                && row["status"] == json!("running")
+                && row["sessionName"] == json!("f20-worker")
+                && row["model"] == json!("mock/mock-1")
+                && row["sessionDir"].is_string()
+        }),
+        "the admission row carries the snapshot: {rows:?}"
+    );
+    assert!(
+        rows.iter().any(|row| {
+            row["id"] == json!(handle.rlm_child_id)
+                && row["status"] == json!("done")
+                && row["answerPreview"] == json!("the child final answer")
+        }),
+        "the settle row carries the terminal status: {rows:?}"
+    );
+    assert!(
+        rows.iter().any(|row| {
+            row["id"] == json!(handle.rlm_child_id)
+                && row["status"] == json!("cancelled")
+                && row["error"] == json!("Deleted by parent orchestrator")
+        }),
+        "the delete surfaces the removal row: {rows:?}"
+    );
 }
 
 /// A cancelled run's watcher settle leaves the display `running`, so a
@@ -753,11 +816,8 @@ async fn one_running_child(sessions: &SupervisorChildSessions) {
     }
 }
 
-/// `close_children` (TS `closeChildSessions` at the replacement
-/// teardown / session close): every tracked child is stopped through
-/// the supervisor - a plain stop, no delete marker, so the ledger edge
-/// and passive roster row survive - the registry empties, and no
-/// terminal notice is owed to the closing parent session.
+/// `close_children`: every tracked child is stopped through the supervisor — a plain stop, no
+/// delete marker; the registry empties, and no terminal notice is owed.
 #[tokio::test]
 async fn close_children_stops_the_child_and_clears_the_roster() {
     let (follow_up_tx, mut follow_up_rx) = mpsc::unbounded_channel();
@@ -787,20 +847,15 @@ async fn close_children_stops_the_child_and_clears_the_roster() {
         !kill.to_string().contains("rlmLedgerDelete"),
         "the replacement close is a stop, not a delete"
     );
-    // The registry the replacement session reads starts empty.
     let entries = sessions.list_subagents().await.expect("child roster");
     assert!(
         entries.is_empty(),
         "the closed child stays listed: {entries:?}"
     );
-    // No terminal notice is delivered to the closing parent session.
     let extra = tokio::time::timeout(Duration::from_millis(300), follow_up_rx.recv()).await;
     assert!(extra.is_err(), "a closed child must not deliver a notice");
 }
 
-/// A child whose session is already gone is a completed no-op (the TS
-/// `sessions.has` early return in `closeSessionOnce`), not a close
-/// failure: the registry drops it and the close succeeds.
 #[tokio::test]
 async fn close_children_treats_an_already_gone_child_as_a_no_op() {
     let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
@@ -827,9 +882,6 @@ async fn close_children_treats_an_already_gone_child_as_a_no_op() {
     );
 }
 
-/// A real close failure propagates and keeps the child tracked, so the
-/// caller (the replacement teardown) fails exactly like TS
-/// `teardownForReplacement` rethrowing `disposeHostedSubagentRuntimes`.
 #[tokio::test]
 async fn close_children_keeps_a_failed_child_tracked() {
     let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
@@ -853,8 +905,6 @@ async fn close_children_keeps_a_failed_child_tracked() {
     assert_eq!(entries.len(), 1, "the failed child stays tracked for retry");
 }
 
-/// A child that sent an agent message back gets no terminal notice: the
-/// reply is the parent's report (TS `_parentReplyCount`).
 #[tokio::test]
 async fn a_replied_child_gets_no_terminal_notice() {
     let (follow_up_tx, mut follow_up_rx) = mpsc::unbounded_channel();
@@ -866,18 +916,14 @@ async fn a_replied_child_gets_no_terminal_notice() {
     let handle = spawn_child(&sessions).await;
     assert!(!handle.rlm_child_id.is_empty());
     sessions.mark_replied("child-live").await;
-    // The worker releases the detached prompt at its turn boundary.
     sessions.notify_turn_done();
 
     let extra = tokio::time::timeout(std::time::Duration::from_secs(2), follow_up_rx.recv()).await;
     assert!(extra.is_err(), "a replied child must not deliver a notice");
 }
 
-/// TS #2388: a target whose delete receipt already returned resolves
-/// immediately to the settled cancelled envelope - status `cancelled`,
-/// `settled: true`, the delete reason - without spending the timeout
-/// budget; unknown selectors keep erroring, and the delete selector
-/// itself keeps the TS miss.
+/// A target whose delete receipt already returned resolves immediately to the settled cancelled
+/// envelope without spending the timeout budget; unknown selectors keep erroring.
 #[tokio::test]
 async fn collect_answers_a_just_deleted_target_with_the_cancelled_envelope() {
     let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
@@ -903,7 +949,6 @@ async fn collect_answers_a_just_deleted_target_with_the_cancelled_envelope() {
         .await
         .expect("delete the settled child");
 
-    // By child id: the settled cancelled envelope the receipt promised.
     let results = sessions
         .collect(vec![handle.rlm_child_id.clone()], 0)
         .await
@@ -917,7 +962,6 @@ async fn collect_answers_a_just_deleted_target_with_the_cancelled_envelope() {
         results[0].error.as_deref(),
         Some("Deleted by parent orchestrator")
     );
-    // By session name: the same cancelled envelope.
     let results = sessions
         .collect(vec!["f20-worker".to_string()], 0)
         .await
@@ -926,7 +970,6 @@ async fn collect_answers_a_just_deleted_target_with_the_cancelled_envelope() {
     assert_eq!(results[0].rlm_child_id, handle.rlm_child_id);
     assert_eq!(results[0].status, "cancelled");
     assert!(results[0].settled);
-    // An unknown selector keeps the TS miss.
     let missing = sessions
         .collect(vec!["ghost".to_string()], 0)
         .await
@@ -935,22 +978,222 @@ async fn collect_answers_a_just_deleted_target_with_the_cancelled_envelope() {
         missing.to_string(),
         "No direct RLM child matches \"ghost\" in the current parent session"
     );
-    // The delete selector itself keeps its TS miss: the tombstone
-    // answers collect only.
-    let gone = sessions
+    // Retirement is idempotent (the M5 class): a re-delete of the same
+    // selector answers from the tombstone with the row's status at its
+    // delete, never the old "no longer resolves" miss.
+    let redeleted = sessions
         .delete_subagent("f20-worker".to_string())
         .await
-        .expect_err("the deleted child no longer resolves for a delete");
+        .expect("the re-delete of a retired child is idempotent");
+    assert_eq!(redeleted.outcome, Some("deleted"));
+    assert_eq!(redeleted.subagent.status, "completed");
+    assert_eq!(redeleted.subagent.session_name, "f20-worker");
+    // A genuinely unknown selector keeps its miss.
+    let gone = sessions
+        .delete_subagent("ghost".to_string())
+        .await
+        .expect_err("an unknown selector still errors");
     assert_eq!(
         gone.to_string(),
-        "No direct RLM subagent matches \"f20-worker\" in the current parent session"
+        "No direct RLM subagent matches \"ghost\" in the current parent session"
     );
 }
 
-/// TS #2388: the inactive delete (a settled retained child) leaves the
-/// same tombstone as the live delete, so `collect` answers a
-/// just-deleted selector with the settled cancelled envelope its
-/// delete receipt promised.
+/// The M5 pin: a settled (terminal) child's delete releases its name slot —
+/// a same-name spawn admits again — and the delete of a settled child
+/// returns the terminal row instead of erroring.
+#[tokio::test]
+async fn a_deleted_settled_child_releases_its_name_slot_and_deletes_idempotently() {
+    let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
+    let (sessions, _kill_rx) =
+        sessions_with_fake_supervisor(follow_up_tx, 0, FakeKill::Success, FakeChild::Healthy).await;
+    let handle = spawn_child(&sessions).await;
+    sessions.notify_turn_done();
+    // The child settles before the delete (a terminal-status row).
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let entries = sessions.list_subagents().await.expect("child roster");
+        if entries.iter().any(|entry| entry.status == "completed") {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "child never settled: {entries:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let deleted = sessions
+        .delete_subagent(handle.rlm_child_id.clone())
+        .await
+        .expect("delete the settled child");
+    assert_eq!(deleted.subagent.status, "completed");
+
+    // The name slot is released: the supervisor admits a same-name spawn.
+    let respawned = spawn_child(&sessions).await;
+    assert_eq!(respawned.name, "f20-worker");
+
+    // Deleting a child whose run was cancelled (the factory's stop pass)
+    // reports the cancelled row, and a second delete of it is idempotent.
+    // The cancel lands before the turn-done notification, so the respawned
+    // child is provably still running when it is cut short.
+    assert!(
+        sessions.cancel_child_run(&respawned.rlm_child_id).await,
+        "cancel the respawned child"
+    );
+    let cancelled_delete = sessions
+        .delete_subagent(respawned.rlm_child_id.clone())
+        .await
+        .expect("delete the cancelled child");
+    assert_eq!(cancelled_delete.subagent.status, "cancelled");
+    let again = sessions
+        .delete_subagent(respawned.rlm_child_id.clone())
+        .await
+        .expect("the second delete of the cancelled child is idempotent");
+    assert_eq!(again.subagent.status, "cancelled");
+}
+
+/// The exit capture (the M4 seam): an unreachable child settles `error`
+/// through the give-up, but its last assistant text still lands on the row —
+/// the live read first, the durable session file second — so the parent-side
+/// reader (the factory's provisional answer) sees the child's final say, not
+/// a bare failure row.
+#[tokio::test(start_paused = true)]
+async fn a_failed_settle_captures_the_childs_last_assistant_text() {
+    tokio::spawn(async {
+        let mut tick = tokio::time::interval(Duration::from_secs(1));
+        loop {
+            tick.tick().await;
+        }
+    });
+    let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
+    let (sessions, _kill_rx) =
+        sessions_with_fake_supervisor(follow_up_tx, 0, FakeKill::Success, FakeChild::Unreachable)
+            .await;
+    let handle = spawn_child(&sessions).await;
+    let settled = sessions.settle_notified();
+    sessions.notify_turn_done();
+    tokio::time::timeout(Duration::from_secs(3_600), settled)
+        .await
+        .expect("the unreachable give-up settles the child as failed");
+    let results = sessions
+        .collect(vec![handle.rlm_child_id.clone()], 0)
+        .await
+        .expect("collect the failed child");
+    assert_eq!(results[0].status, "error");
+    assert_eq!(
+        results[0].answer_preview.as_deref(),
+        Some("the child final answer"),
+        "the exit capture preserved the last assistant text on the failed row"
+    );
+    assert_eq!(
+        results[0].answer_text.as_deref(),
+        Some("the child final answer"),
+        "the binding lane carries the exit capture"
+    );
+}
+
+/// Review finding (PR #3462): a `None` first answer capture (the settle
+/// raced the worker's answer hand-off) FROZE the row empty — the capture fill
+/// only ran while the settle verdict was unset, so no later refresh could
+/// deliver the text and every re-collect answered the same empty envelope. The
+/// fill now runs on every refresh: it writes only when the fresh round trip
+/// produced a text AND the row has no answer yet.
+#[tokio::test]
+async fn a_none_first_answer_capture_recovers_on_a_later_collect() {
+    let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
+    let (sessions, _kill_rx) =
+        sessions_with_fake_supervisor(follow_up_tx, 0, FakeKill::Success, FakeChild::TextLate)
+            .await;
+    let handle = spawn_child(&sessions).await;
+    sessions.notify_turn_done();
+    // The watcher's settle refresh consumed the empty first answer read and
+    // settled the child with no captured answer.
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let entries = sessions.list_subagents().await.expect("child roster");
+        if entries.iter().any(|entry| entry.status == "completed") {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "child never settled: {entries:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    // A later collect refreshes the row and the answer lands: the settle
+    // verdict is one-shot, the capture is not.
+    let results = sessions
+        .collect(vec![handle.rlm_child_id.clone()], 0)
+        .await
+        .expect("collect the settled child");
+    assert_eq!(results[0].status, "done");
+    assert_eq!(
+        results[0].answer_text.as_deref(),
+        Some("the child final answer"),
+        "the late answer must land after the empty first capture"
+    );
+    assert_eq!(
+        results[0].answer_preview.as_deref(),
+        Some("the child final answer")
+    );
+}
+
+/// The collect envelope carries the settled child's full final answer as its
+/// binding lane (the factory's output capture binds the whole fenced JSON from
+/// it), while the roster preview stays the compact form; the deleted envelope's
+/// binding lane is empty (the tombstone only keeps the preview).
+#[tokio::test]
+async fn collect_carries_the_full_answer_text_of_a_settled_child() {
+    let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
+    let (sessions, _kill_rx) =
+        sessions_with_fake_supervisor(follow_up_tx, 0, FakeKill::Success, FakeChild::Healthy).await;
+    let handle = spawn_child(&sessions).await;
+    sessions.notify_turn_done();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let entries = sessions.list_subagents().await.expect("child roster");
+        if entries.iter().any(|entry| entry.status == "completed") {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "child never settled: {entries:?}"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let results = sessions
+        .collect(vec![handle.rlm_child_id.clone()], 0)
+        .await
+        .expect("collect the settled child");
+    assert_eq!(
+        results[0].answer_preview.as_deref(),
+        Some("the child final answer")
+    );
+    assert_eq!(
+        results[0].answer_text.as_deref(),
+        Some("the child final answer"),
+        "the binding lane carries the full final answer"
+    );
+    sessions
+        .delete_subagent(handle.rlm_child_id.clone())
+        .await
+        .expect("delete the settled child");
+    let deleted = sessions
+        .collect(vec![handle.rlm_child_id.clone()], 0)
+        .await
+        .expect("collect the deleted child");
+    assert_eq!(
+        deleted[0].answer_preview.as_deref(),
+        Some("the child final answer")
+    );
+    assert_eq!(
+        deleted[0].answer_text, None,
+        "the tombstone carries no binding lane"
+    );
+}
+
+/// The inactive delete (a settled retained child) leaves the same tombstone as the live delete, so
+/// `collect` answers a just-deleted selector with the settled cancelled envelope.
 #[tokio::test]
 async fn collect_answers_the_cancelled_envelope_after_an_inactive_delete() {
     let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
@@ -992,10 +1235,8 @@ async fn collect_answers_the_cancelled_envelope_after_an_inactive_delete() {
     );
 }
 
-/// The unreachable-poller's POSITIVE-status guard: a child that already
-/// settled (`done` — the idle passivation's prerequisite) never re-scores
-/// as an error when its worker leaves afterward; a still-RUNNING child
-/// does (the crash class the error verdict exists for).
+/// A child that already settled never re-scores as an error when its worker leaves afterward; a
+/// still-RUNNING child does (the crash class the error verdict exists for).
 #[test]
 fn an_already_settled_child_never_re_scores_as_an_unreachable_error() {
     let base = || ChildRecord {
@@ -1004,11 +1245,13 @@ fn an_already_settled_child_never_re_scores_as_an_unreachable_error() {
         active_session_id: "child-live".to_string(),
         session_id: Some("child-file".to_string()),
         session_dir: "/tmp".to_string(),
+        model: String::new(),
         label: "task".to_string(),
         started_at_ms: 0,
         settled_status: None,
         settled: false,
         answer_preview: None,
+        answer_text: None,
         answer_captured: false,
         replied_since_task: false,
         notice_delivered: false,
@@ -1020,6 +1263,8 @@ fn an_already_settled_child_never_re_scores_as_an_unreachable_error() {
         usage_watch_live: false,
         usage_rearm: false,
         emit_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+        last_emitted_status: None,
+        rename_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
     };
     // A running child that goes unreachable is the error class.
     assert!(super::lifecycle::should_mark_unreachable_error(&base()));
@@ -1037,4 +1282,78 @@ fn an_already_settled_child_never_re_scores_as_an_unreachable_error() {
     let mut noticed = base();
     noticed.notice_delivered = true;
     assert!(!super::lifecycle::should_mark_unreachable_error(&noticed));
+}
+
+/// The unreachable give-up's exit capture is a wasted round trip when a
+/// captured answer already stands (a child that settled, went busy again
+/// on a queued continuation, then lost its worker): the record keeps its
+/// capture, so the fetched text could never land. The give-up must skip
+/// the capture entirely — zero `get_last_assistant_text` reads, the
+/// standing capture unchanged.
+#[tokio::test]
+async fn the_unreachable_give_up_skips_the_exit_capture_when_a_capture_stands() {
+    let (follow_up_tx, _follow_up_rx) = mpsc::unbounded_channel();
+    let child_subagents = Arc::new(FakeChildSubagents::default());
+    let (sessions, _kill_rx) = sessions_with_fake_child_subagents(
+        follow_up_tx,
+        0,
+        FakeKill::Success,
+        FakeChild::Unreachable,
+        Arc::clone(&child_subagents),
+    )
+    .await;
+    let record = Arc::new(tokio::sync::Mutex::new(ChildRecord {
+        rlm_child_id: "child-id".to_string(),
+        session_name: "lane".to_string(),
+        active_session_id: "child-live".to_string(),
+        session_id: Some("child-file".to_string()),
+        session_dir: "/tmp".to_string(),
+        model: String::new(),
+        label: "task".to_string(),
+        started_at_ms: 0,
+        settled_status: None,
+        settled: false,
+        answer_preview: Some("the captured say".to_string()),
+        answer_text: Some("the captured say".to_string()),
+        answer_captured: true,
+        replied_since_task: false,
+        notice_delivered: false,
+        prompt_admitted: true,
+        error: None,
+        closed_by_parent: false,
+        session_file: Some(
+            std::env::temp_dir()
+                .join(format!(
+                    "pa-rlm-watch-skip-{}.jsonl",
+                    uuid::Uuid::new_v4().simple()
+                ))
+                .to_string_lossy()
+                .to_string(),
+        ),
+        attributed_rows: Some(0),
+        usage_watch_live: false,
+        usage_rearm: false,
+        emit_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+        last_emitted_status: None,
+        rename_lock: std::sync::Arc::new(tokio::sync::Mutex::new(())),
+    }));
+    let claimed = sessions
+        .inner
+        .settle_failed(
+            &record,
+            "Child worker unreachable".to_string(),
+            super::lifecycle::FailedArm::Unreachable,
+        )
+        .await;
+    assert!(claimed, "the give-up claims the settle");
+    assert_eq!(
+        child_subagents.answer_reads.load(Ordering::SeqCst),
+        0,
+        "no exit-capture round trip may run while a captured answer stands"
+    );
+    let record = record.lock().await;
+    assert_eq!(record.settled_status, Some("error"));
+    assert_eq!(record.answer_preview.as_deref(), Some("the captured say"));
+    assert_eq!(record.answer_text.as_deref(), Some("the captured say"));
+    assert!(record.answer_captured);
 }

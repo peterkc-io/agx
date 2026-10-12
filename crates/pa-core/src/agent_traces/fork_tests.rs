@@ -4,6 +4,12 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::AtomicUsize;
 
+#[test]
+fn continuous_refusal_exempts_only_pa_core_unit_tests() {
+    assert!(super::continuous::fork_traces_refused(false));
+    assert!(!super::continuous::fork_traces_refused(true));
+}
+
 #[derive(Default)]
 struct RecordingHttp(AtomicUsize);
 impl TraceHttp for RecordingHttp {

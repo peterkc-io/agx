@@ -20,8 +20,19 @@ target. No other test is deleted or newly ignored. The two Linux-only test
 files retain their Linux coverage. Their macOS code exclusions are distinct
 from accepted flakes. The prerequisite platform adjustments are intentional.
 
-Open upstream PR #3339 overlaps another part of `interactive_daemon_e2e.rs`,
-not the timeout seam. It remains a future merge-conflict risk.
+Upstream PR #3339 is merged in the recorded upstream-first base
+`2ee7e623a70d8ccd9c72ffc6c4f25be2cc1bc02d`. Its shutdown-close coverage is
+retained with the existing Linux prerequisite guards.
+
+On this macOS host, the known baseline failures are ten pa-tui platform-key or
+clipboard cases and two pa-types Unix-socket length cases. The current run has
+eight of those pa-tui failures and the same two pa-types failures; neither
+clipboard case fails now. The user also accepts
+`refinement::tests::concurrent_update_harness_state_writes_all_land` as a host
+failure here: it intermittently times out on the harness lock on both the fork
+and exact upstream, likely after upstream #3380 added durable sync. This is not
+a D-17 flake waiver. The refinement test must pass in both Linux CI carriers;
+a failure in either carrier stops upstream-first.
 
 | Upstream file | Reason | Verification |
 | --- | --- | --- |
@@ -29,12 +40,12 @@ not the timeout seam. It remains a future merge-conflict risk.
 | `Cargo.toml` | Add the fork-owned identity workspace crate. | Workspace fmt, clippy, and build. |
 | `crates/pa-cli/Cargo.toml` | Name the binary agx; replace three retired installer scenarios with fork update refusals. | Three no-network update tests; workspace target checks. |
 | `crates/pa-cli/src/client_traces.rs` | Report trace sharing unsupported and off. | Four client-trace tests and public no-request trace test; legacy protocol coverage retained. |
-| `crates/pa-cli/src/client_update.rs` | Reject TUI installer execution before side effects. | Fork update refusal and actual TUI error-exit scenario. |
+| `crates/pa-cli/src/client_update.rs` | Refuse agx updates before retained upstream Homebrew and managed-update paths. | Fork update refusal and actual TUI error-exit scenario. |
 | `crates/pa-cli/src/config.rs` | Name the app agx; reject resolved upstream socket paths. | Four config tests, including both namespaces and all sources. |
 | `crates/pa-cli/src/daemon_client.rs` | macOS setsockopt after peer close returns EINVAL; set READ_POLL once. | Four daemon-client tests; closing-reason test 50/50. |
 | `crates/pa-cli/src/daemon_command.rs` | Apply socket precedence before guarded resolution. | CLI daemon parser tests and explicit socket rejection scenario. |
 | `crates/pa-cli/src/daemon_mode.rs` | Propagate socket rejection before starting a supervisor. | Config tests and live socket coexistence scenario. |
-| `crates/pa-cli/src/installer_update.rs` | Reject the native installer runner before networking. | Three fork update refusal tests. |
+| `crates/pa-cli/src/installer_update.rs` | Refuse agx installer execution before retained upstream Homebrew and update code. | Three fork-owned no-network update scenarios. |
 | `crates/pa-cli/src/interactive_mode.rs` | Propagate guarded socket resolution. | Config tests and live socket coexistence scenario. |
 | `crates/pa-cli/src/interactive_mode/daemon.rs` | Reject upstream sockets before stale-daemon checks or replacement. | Socket unit tests and live coexistence scenario. |
 | `crates/pa-cli/src/lib.rs` | Prefix version output with agx. | Local install version check. |
@@ -79,7 +90,9 @@ not the timeout seam. It remains a future merge-conflict risk.
 | `crates/pa-cli/tests/terminal_state_differential_e2e/harness.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/termios_process_exit_e2e.rs` | Linux-only test code; upstream CI is Linux-only. | Linux integration suite (lead-owned). |
 | `crates/pa-cli/tests/view_switch_latency_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
+| `crates/pa-cli/tests/windows_runtime_triage_e2e.rs` | Use agx executable; Linux-only prctl backstop, upstream CI is Linux-only. | Linux integration suite; Windows triage path unchanged. |
 | `crates/pa-core/src/agent_traces.rs` | Add the fork-owned public upload guard test module. | Recording test has a reachable HTTP positive control. |
+| `crates/pa-core/src/agent_traces/continuous.rs` | Keep continuous trace upload off in agx builds (consent and request); pa-core unit tests keep upstream behavior. | continuous tests; fork_tests trace refusal; no-upstream-network. |
 | `crates/pa-core/src/agent_traces/tests.rs` | Keep legacy protocol tests on private carried upstream machinery. | Legacy trace unit tests and separate public guard test. |
 | `crates/pa-core/src/agent_traces/upload.rs` | Disable every public single-file upload before requests, including forced options. | Recording fake returns Disabled with zero requests. |
 | `crates/pa-core/src/agent_traces/upload_all.rs` | Disable public upload-all before payload collection or requests; retain private protocol coverage. | Recording fake for upload-all and legacy protocol tests. |
@@ -99,7 +112,8 @@ not the timeout seam. It remains a future merge-conflict risk.
 | `crates/pa-core/tests/kernel_teardown.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/turn_boundary_kernel.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/src/agent_engine/tests/abort.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
-| `crates/pa-daemon/src/platform/paths.rs` | Separate Unix directory and Windows pipe namespaces. | Default path inspection and socket unit tests. |
+| `crates/pa-daemon/src/branch_navigation.rs` | Trace fork tests assert agx's no-marker behavior (FR-016). | pa-daemon trace_fork_tests; pa-core continuous slot tests. |
+| `crates/pa-daemon/src/platform/paths.rs` | Separate Unix directory and Windows pipe namespaces; retain the upstream real-UID helper. | Fork-namespace real-UID assertion and socket unit tests. |
 | `crates/pa-daemon/src/socket.rs` | Refuse upstream sockets before bind, unlink, or stale cleanup. | Socket guard units and live coexistence scenario. |
 | `crates/pa-daemon/tests/abort_kernel_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/tests/agent_family_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
@@ -115,7 +129,7 @@ not the timeout seam. It remains a future merge-conflict risk.
 | `crates/pa-daemon/tests/rlm_children_replacement_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/tests/rlm_quiescence_barrier_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/tests/steer_boundary_batch_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
-| `crates/pa-tui/src/interactive/run.rs` | Close the TUI only for a typed disabled-update rejection; keep ordinary prompt errors soft. | Actual /update error exit and terminal restoration scenario. |
+| `crates/pa-tui/src/interactive/run.rs` | Return typed agx update refusal through terminal cleanup before retained prompt soft errors. | Actual TUI update error-exit restores terminal state. |
 | `crates/pa-tui/src/session_ui/commands.rs` | Raise the typed update rejection with local install instructions. | TUI update dispatch tests and actual error-exit scenario. |
 | `crates/pa-tui/src/session_ui/share.rs` | Report disabled trace sharing before login or upload. | TUI trace dispatch and recording public trace tests. |
 | `crates/pa-tui/src/traces.rs` | Expose unsupported trace capability with an upstream-compatible default. | TUI trace tests with carried generic fixtures. |

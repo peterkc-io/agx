@@ -1,6 +1,4 @@
-// The Tier-C/D ruling (fleet-uniform, 2026-09-28) - this target's own
-// crate root: the same bounded-boundary disposition as src/lib.rs
-// (large_futures/too_many_lines/the cast family; details there).
+// Pedantic-gate dispositions as src/lib.rs (large_futures/too_many_lines/casts).
 #![allow(
     clippy::large_futures,
     clippy::too_many_lines,
@@ -11,13 +9,9 @@
 )]
 
 //! Verifier integration test: an oversized protocol line poisons the child
-//! and lands in protocol repair instead of buffering until OOM (TS #2423
-//! `MAX_PROTOCOL_LINE_CHARS` + the `oversized protocol line` repair test).
-//!
-//! A fake runtime (a small executable script, not the real one) answers the
-//! ready handshake, streams 33 Mi of unterminated output for one request, and
-//! answers every other request normally — so the repair's replacement child
-//! serves the follow-up cell.
+//! and lands in protocol repair instead of buffering until OOM. A fake
+//! runtime streams 33 Mi of unterminated output for one request and answers
+//! every other request normally, so the repair's child serves the follow-up.
 
 #![cfg(unix)]
 
@@ -49,8 +43,9 @@ for line in sys.stdin:
         sys.stdout.flush()
         time.sleep(30)
         break
-    if req.get("code") == "big-frame":
-        sys.stdout.write(" " * (31 * 1024 * 1024) + "\n")
+    if req.get("code") in ("big-frame", "unicode-blank-frame"):
+        padding = " " * (31 * 1024 * 1024) if req.get("code") == "big-frame" else " \t\r\v\f\u0085\u00a0\u2000\u2028\u2029\u3000 "
+        sys.stdout.write(padding + "\n")
         sys.stdout.write(json.dumps({"event": "stdout", "id": req.get("id"), "text": "big"}) + "\n")
     sys.stdout.write(json.dumps({"event": "done", "id": req.get("id"), "status": "ok"}) + "\n")
     sys.stdout.flush()
@@ -98,9 +93,8 @@ async fn oversized_unterminated_protocol_line_poisons_and_repairs() {
         "unexpected error: {error:#}"
     );
 
-    // The poisoned child is replaced by the protocol repair; the follow-up
-    // cell (the replacement also speaks the fake protocol) serves normally
-    // with a plain ok done frame.
+    // The poisoned child is replaced by the protocol repair; the follow-up cell (the replacement
+    // also speaks the fake protocol) serves normally with a plain ok done frame.
     let follow = manager.execute("42", ExecuteOptions::default()).await;
     let follow = follow.expect("follow-up execute must not fail");
     assert_eq!(follow.status, ExecuteStatus::Ok);
@@ -126,6 +120,16 @@ async fn normal_protocol_lines_still_stream_through_the_bounded_reader() {
             .expect("execute must not fail");
         assert_eq!(result.status, ExecuteStatus::Ok);
     }
+    // The ASCII fast path must retain Unicode blank-line handling and continue
+    // dispatching the following nonblank stdout/done frames.
+    let unicode = manager
+        .execute("unicode-blank-frame", ExecuteOptions::default())
+        .await
+        .expect("Unicode blank line must not poison the reader");
+    assert_eq!(
+        (unicode.status, unicode.stdout.as_str()),
+        (ExecuteStatus::Ok, "big")
+    );
     // Give the teardown its full grace window (the fake lives until EOF).
     let _ = tokio::time::timeout(
         Duration::from_secs(10),

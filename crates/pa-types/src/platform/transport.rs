@@ -1,26 +1,18 @@
-//! Transport contract for daemon sockets and streams.
-//!
-//! The daemon redesign defines its transport as a trait from day one
-//! (MISSION.md, Windows-readiness): `AF_UNIX` sockets today, named pipes
-//! (`\\.\pipe\...`) on Windows later. Callers bind/connect through these
-//! traits and never name a concrete socket type, so a future platform swap
-//! (tokio named-pipe listener) is an implementation change only.
+//! Transport contract for daemon sockets and streams: `AF_UNIX` sockets today, named pipes on
+//! Windows later. Callers bind/connect through these traits and never name a concrete socket type.
 
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
 
 use anyhow::Result;
-// `Context` is used by the linux `O_PATH` re-anchoring and the Windows
-// pipe-name error only; a bare import is an unused-import on every other
-// platform.
+// `Context` is used only by the linux `O_PATH` re-anchoring and the
+// Windows pipe-name error; a bare import is unused elsewhere.
 #[cfg(any(target_os = "linux", windows))]
 use anyhow::Context;
 
-/// A full-duplex stream between a client and a daemon endpoint.
-///
-/// `split` consumes the boxed stream into its owned halves; concrete socket
-/// types implement this, and callers hold only the erased halves.
+/// A full-duplex stream between a client and a daemon endpoint; `split`
+/// consumes it into owned halves, and callers hold only the erased halves.
 pub trait TransportStream: Send + Sync {
     fn split(self: Box<Self>) -> (Box<dyn AsyncReadHalf>, Box<dyn AsyncWriteHalf>);
 }
@@ -47,8 +39,7 @@ pub type AcceptFuture<'a> =
 
 /// A bound transport endpoint that hands out connected streams.
 pub trait TransportListener: Send + Sync {
-    /// Future-boxed so the trait stays dyn-compatible (RPITIT methods are not);
-    /// the future borrows the listener for the duration of the accept.
+    /// Future-boxed so the trait stays dyn-compatible (RPITIT methods are not).
     fn accept(&self) -> AcceptFuture<'_>;
 }
 
@@ -66,21 +57,15 @@ impl TransportListener for tokio::net::UnixListener {
 #[cfg(unix)]
 const MAX_SUN_PATH: usize = 107;
 
-/// A kernel-valid `AF_UNIX` address for `bind`/`connect`.
-///
-/// Paths within the limit pass through unchanged. A longer path is re-anchored
-/// through an `O_PATH` descriptor on its parent directory
-/// (`/proc/self/fd/<fd>/<file name>`): the socket file still lands at the
-/// original (deep) location while the address handed to the kernel stays
-/// short. The TS runtime's socket layer performs this rewrite transparently
-/// (the installed product survives deep `TMPDIR` socket paths), so daemon
-/// and worker endpoints on long paths behave identically here. Linux only;
-/// other platforms surface the natural path-length error.
+/// A kernel-valid `AF_UNIX` address for `bind`/`connect`. Paths within the limit pass through; a
+/// longer path is re-anchored through an `O_PATH` descriptor on its parent
+/// (`/proc/self/fd/<fd>/<name>`) so the socket file still lands at the original deep location (like
+/// TS, surviving deep `TMPDIR` paths). Linux only.
 #[cfg(unix)]
 pub struct UnixSocketAddress {
     address: std::path::PathBuf,
-    /// Holds the directory descriptor open for the address lifetime; the
-    /// re-anchored `/proc/self/fd` path is valid only while this lives.
+    /// Holds the directory descriptor open; the re-anchored
+    /// `/proc/self/fd` path is valid only while this lives.
     _dir: Option<std::fs::File>,
 }
 
@@ -122,8 +107,8 @@ impl UnixSocketAddress {
     fn through_dir_fd(path: &Path) -> Result<(std::path::PathBuf, std::fs::File)> {
         use std::os::fd::AsRawFd;
         use std::os::unix::fs::OpenOptionsExt;
-        // `O_PATH` (Linux `asm-generic`): an fd that references the directory
-        // without read/write access; only `/proc/self/fd` traversal uses it.
+        // `O_PATH`: an fd that references the directory without read/write
+        // access; only `/proc/self/fd` traversal uses it.
         const O_PATH: i32 = 0o200_000;
         let name = path
             .file_name()
@@ -155,8 +140,8 @@ impl UnixSocketAddress {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be turned into a kernel-valid socket
-/// address or if binding the listener fails.
+/// Returns an error if `path` cannot become a kernel-valid socket address or the listener fails to
+/// bind.
 #[cfg(unix)]
 pub async fn bind_transport(path: &Path) -> Result<Box<dyn TransportListener>> {
     crate::fork_identity::reject_upstream_socket(path)?;
@@ -169,14 +154,54 @@ pub async fn bind_transport(path: &Path) -> Result<Box<dyn TransportListener>> {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be turned into a kernel-valid socket
-/// address or if the connection attempt fails.
+/// Returns an error if `path` cannot become a kernel-valid socket address or the connection fails.
 #[cfg(unix)]
 pub async fn connect_transport(path: &Path) -> Result<Box<dyn TransportStream>> {
     crate::fork_identity::reject_upstream_socket(path)?;
     let address = UnixSocketAddress::new(path)?;
     let stream = tokio::net::UnixStream::connect(address.effective()).await?;
     Ok(Box::new(stream))
+}
+
+/// Definitive nonblocking Unix listener refusal, used by the exit cleanup.
+/// A saturated backlog can yield `EAGAIN` on Linux rather than a completed
+/// connect. Only `ConnectionRefused` permits unlink; all unknown outcomes fail
+/// closed. Reuse the transport's long-path re-anchor so deep socket paths
+/// retain their stale-cleanup behavior.
+///
+/// The refused verdict is definitive on Linux only: on macOS and the BSDs a
+/// saturated listen queue ALSO refuses the connect, so a live successor that
+/// filled its backlog is indistinguishable from a dead path by this probe.
+/// There the function never claims closure (the exit cleanup preserves the
+/// path; the next bind's stale-socket prepare cleans a file nothing serves).
+#[cfg(unix)]
+#[must_use]
+pub fn unix_listener_definitely_closed(path: &Path) -> bool {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = path;
+        false
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let Ok(effective) = UnixSocketAddress::new(path) else {
+            return false;
+        };
+        let Ok(address) = socket2::SockAddr::unix(effective.effective()) else {
+            return false;
+        };
+        let Ok(socket) = socket2::Socket::new(socket2::Domain::UNIX, socket2::Type::STREAM, None)
+        else {
+            return false;
+        };
+        if socket.set_nonblocking(true).is_err() {
+            return false;
+        }
+        matches!(
+            socket.connect(&address),
+            Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused
+        )
+    }
 }
 
 #[cfg(windows)]
@@ -205,18 +230,12 @@ impl TransportStream for tokio::net::windows::named_pipe::NamedPipeClient {
     }
 }
 
-/// The pipe name handed to `CreateNamedPipe`/`CreateFile`: an existing
-/// pipe path passes through unchanged (it must be UTF-8 for the Windows
-/// APIs) - the local `\\.\pipe\`/`\\?\pipe\` forms and the remote
-/// `\\server\pipe\` form, matched case-insensitively because the pipe
-/// namespace itself is case-insensitive. Any other explicit path - a
-/// unix-style socket file path from `--daemon-socket` or
-/// `PRIME_AGENT_DAEMON_SOCKET` - is derived into the pipe namespace
-/// deterministically: a relative path resolves against the current
-/// directory first, and the resolved absolute spelling is lowercased
-/// (Windows paths are case-preserving but case-insensitive), so bind and
-/// connect run the same derivation and the explicit path names the same
-/// endpoint on every platform the way a socket file does on Unix.
+/// The pipe name handed to `CreateNamedPipe`/`CreateFile` (must be UTF-8): an existing pipe path
+/// passes through - the local `\\.\pipe\`/ `\\?\pipe\` and remote `\\server\pipe\` forms,
+/// case-insensitively like the pipe namespace. Any other explicit path (a unix-style socket path)
+/// is
+/// derived deterministically: resolved absolute spelling, lowercased, so bind and connect name the
+/// same endpoint.
 #[cfg(windows)]
 fn pipe_name(path: &Path) -> Result<String> {
     let raw = path
@@ -243,8 +262,7 @@ fn pipe_name(path: &Path) -> Result<String> {
 }
 
 /// Whether `raw` (already lowercased) is a pipe path the Windows APIs
-/// accept as-is: the local `\\.\pipe\`/`\\?\pipe\` forms or the remote
-/// `\\server\pipe\` form (any non-empty server name).
+/// accept as-is: the local forms or the remote `\\server\pipe\` form.
 #[cfg(windows)]
 fn is_pipe_path(raw: &str) -> bool {
     if raw.starts_with(r"\\.\pipe\") || raw.starts_with(r"\\?\pipe\") {
@@ -258,8 +276,7 @@ fn is_pipe_path(raw: &str) -> bool {
 }
 
 /// FNV-1a over the raw path bytes: the derivation key for [`pipe_name`]
-/// (dependency-free and stable, so the same explicit path names the same
-/// pipe in every process, on the bind and the connect side alike).
+/// (dependency-free and stable).
 #[cfg(windows)]
 fn fnv1a64(bytes: &str) -> u64 {
     bytes.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
@@ -271,8 +288,7 @@ fn fnv1a64(bytes: &str) -> u64 {
 ///
 /// # Errors
 ///
-/// Returns an error when `path` is not valid UTF-8 (the pipe name
-/// surface) or the named-pipe listener cannot be created.
+/// Returns an error when `path` is not valid UTF-8 or the named-pipe listener cannot be created.
 #[cfg(windows)]
 pub async fn bind_transport(path: &Path) -> Result<Box<dyn TransportListener>> {
     crate::fork_identity::reject_upstream_socket(path)?;
@@ -285,8 +301,7 @@ pub async fn bind_transport(path: &Path) -> Result<Box<dyn TransportListener>> {
 ///
 /// # Errors
 ///
-/// Returns an error when `path` is not valid UTF-8 (the pipe name
-/// surface) or the connection attempt fails, including the
+/// Returns an error when `path` is not valid UTF-8 or the connection attempt fails, including the
 /// busy-instance retry window.
 #[cfg(windows)]
 pub async fn connect_transport(path: &Path) -> Result<Box<dyn TransportStream>> {
@@ -300,19 +315,17 @@ pub async fn connect_transport(path: &Path) -> Result<Box<dyn TransportStream>> 
 pub trait BlockingTransportStream:
     std::fmt::Debug + std::io::Read + std::io::Write + Send + Sync
 {
-    /// Duplicate the underlying handle so reads and writes can proceed on
-    /// separate owned halves.
+    /// Duplicate the underlying handle so reads and writes can proceed on separate owned halves.
     ///
     /// # Errors
     ///
-    /// Returns an error if the underlying handle cannot be duplicated.
+    /// Returns an error if the handle cannot be duplicated.
     fn try_clone_box(&self) -> std::io::Result<Box<dyn BlockingTransportStream>>;
     /// Deadline a pending read (poll granularity for deadline-driven waits).
     ///
     /// # Errors
     ///
-    /// Returns an error if setting the read deadline on the underlying
-    /// stream fails.
+    /// Returns an error if setting the read deadline on the underlying stream fails.
     fn set_read_timeout(&self, timeout: std::time::Duration) -> std::io::Result<()>;
 }
 
@@ -331,8 +344,8 @@ impl BlockingTransportStream for std::os::unix::net::UnixStream {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be turned into a kernel-valid socket
-/// address or if the blocking connection attempt fails.
+/// Returns an error if `path` cannot become a kernel-valid socket address or the blocking
+/// connection fails.
 #[cfg(unix)]
 pub fn connect_blocking(path: &Path) -> std::io::Result<Box<dyn BlockingTransportStream>> {
     crate::fork_identity::reject_upstream_socket(path)?;
@@ -345,8 +358,7 @@ pub fn connect_blocking(path: &Path) -> std::io::Result<Box<dyn BlockingTranspor
 ///
 /// # Errors
 ///
-/// Returns an error when `path` is not valid UTF-8 (the pipe name
-/// surface) or the blocking connection attempt fails.
+/// Returns an error when `path` is not valid UTF-8 or the blocking connection fails.
 #[cfg(windows)]
 pub fn connect_blocking(path: &Path) -> std::io::Result<Box<dyn BlockingTransportStream>> {
     crate::fork_identity::reject_upstream_socket(path)?;
@@ -360,10 +372,8 @@ mod tests {
     use super::*;
     use std::os::unix::fs::FileTypeExt;
 
-    /// A directory whose full path length is exactly `target` bytes.
-    ///
-    /// The ambient `TMPDIR` can already be deep (this very harness keeps long
-    /// temp paths), so the base falls back to `/tmp` when needed to stay short.
+    /// A directory whose full path length is exactly `target` bytes; falls
+    /// back to `/tmp` when the ambient `TMPDIR` is already too deep.
     fn dir_of_exact_len(tag: &str, target: usize) -> std::path::PathBuf {
         let tag = format!("pa-transport-sun-path-{tag}");
         let base = std::env::temp_dir().join(&tag);
@@ -510,9 +520,7 @@ mod pipe_name_tests {
     #[test]
     fn relative_paths_derive_per_working_directory() {
         // The current directory is process-global: hold the module's lock
-        // and restore the previous directory on scope exit - the drop
-        // guard covers the panic paths, so a failed assert never leaks
-        // the changed directory to the binary's other tests.
+        // and restore it on exit (the drop guard covers panic paths).
         use std::sync::Mutex;
         static CWD_LOCK: Mutex<()> = Mutex::new(());
         let _lock = CWD_LOCK
@@ -535,9 +543,7 @@ mod pipe_name_tests {
         );
     }
 
-    /// The process working directory on scope exit (including panics):
-    /// a drop guard, so a failed assert or chdir cannot leak the changed
-    /// directory to the binary's other tests.
+    /// Restores the process working directory on scope exit (including panics).
     struct CwdGuard(std::path::PathBuf);
 
     impl CwdGuard {
@@ -559,8 +565,7 @@ mod pipe_name_tests {
         dir
     }
 
-    /// A per-call unique suffix without a uuid dependency: the process id
-    /// plus a monotonic counter.
+    /// Per-call unique suffix without a uuid dependency: the process id plus a monotonic counter.
     fn uuid_like() -> u64 {
         use std::sync::atomic::{AtomicU64, Ordering};
         static COUNTER: AtomicU64 = AtomicU64::new(0);

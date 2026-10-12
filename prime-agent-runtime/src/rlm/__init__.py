@@ -57,6 +57,10 @@ class RLMSubagentActivity:
 
 @dataclass(frozen=True)
 class RLMSubagent:
+    """One direct child row: `status` is `running` | `completed` | `error` |
+    `cancelled` (a cancelled child keeps its status verbatim in the
+    registry row, the TS-era semantics)."""
+
     rlm_child_id: str
     active_session_id: str | None
     session_id: str | None
@@ -82,7 +86,11 @@ class RLMProgressNoteResult:
 
 @dataclass(frozen=True)
 class RLMChildResult:
-    """Terminal or in-progress state of one direct child, from `collect()`."""
+    """Terminal or in-progress state of one direct child, from `collect()`.
+
+    `answer_text` is the child's full final answer (the settle-binding
+    lane, host-bounded); `answer_preview` is the compact roster preview.
+    """
 
     rlm_child_id: str
     session_name: str | None
@@ -90,10 +98,11 @@ class RLMChildResult:
     status: str
     settled: bool
     answer_preview: str | None
-    error: str | None
-    duration_ms: int | None
-    tool_use_count: int | None
-    replied_since_task: bool | None
+    answer_text: str | None = None
+    error: str | None = None
+    duration_ms: int | None = None
+    tool_use_count: int | None = None
+    replied_since_task: bool | None = None
 
 
 def _spawn_handle_from_payload(payload: Any) -> RLMSpawnHandle:
@@ -173,6 +182,7 @@ async def spawn(
     name: str,
     model: str | None = None,
     thinking: str | None = None,
+    kind: str | None = None,
 ) -> RLMSpawnHandle:
     """Spawn a recursive Prime Agent child and return once its task is admitted.
 
@@ -180,14 +190,20 @@ async def spawn(
     ``model`` selects a child with an exact ``provider/model`` selector.
     ``thinking`` sets the child reasoning level (e.g. 'off', 'low', 'medium', 'high');
     defaults to the parent level; levels invalid for the resolved model fail the spawn.
+    ``kind`` selects a dedicated child kind; ``"decision"`` spawns the Decision API
+    child (the model comes from the decisionApi.systemOneModel setting).
     """
     if not isinstance(prompt, str):
         raise TypeError(f"prompt must be str, got {type(prompt).__name__}")
+    if kind is not None and kind != "decision":
+        raise TypeError(f"kind must be 'decision' or None, got {kind!r}")
     kwargs: dict[str, Any] = {"name": name}
     if model is not None:
         kwargs["model"] = model
     if thinking is not None:
         kwargs["thinking"] = thinking
+    if kind is not None:
+        kwargs["kind"] = kind
     # Wire type stays "rlm.run" so kernels and hosts of different versions stay compatible.
     payload = await host_request("rlm.run", {"prompt": prompt, "kwargs": kwargs})
     return _spawn_handle_from_payload(payload)
@@ -306,7 +322,7 @@ def _subagent_from_payload(payload: Any, operation: str = "rlm.list_subagents") 
         raise RuntimeError(f"{operation} entry is missing session_name")
     if not isinstance(session_dir, str) or not session_dir:
         raise RuntimeError(f"{operation} entry is missing session_dir")
-    if status not in {"running", "completed", "error"}:
+    if status not in {"running", "completed", "error", "cancelled"}:
         raise RuntimeError(f"{operation} entry has invalid status")
     return RLMSubagent(
         rlm_child_id=child_id,
@@ -336,8 +352,8 @@ async def list_subagents() -> list[RLMSubagent]:
     return [_subagent_from_payload(entry) for entry in entries]
 
 
-def _collect_target_selector(target: Any) -> str:
-    """Normalize a collect target: spawn handle, subagent row, or a name/id string."""
+def _collect_target_selector(target: Any, what: str = "collect target") -> str:
+    """Normalize a child selector: spawn handle, subagent row, or a name/id string."""
     if isinstance(target, RLMSpawnHandle):
         return target.rlm_child_id
     if isinstance(target, RLMSubagent):
@@ -345,7 +361,7 @@ def _collect_target_selector(target: Any) -> str:
     if isinstance(target, str) and target.strip():
         return target.strip()
     raise TypeError(
-        f"collect target must be RLMSpawnHandle, RLMSubagent, or non-empty str, got {type(target).__name__}"
+        f"{what} must be RLMSpawnHandle, RLMSubagent, or non-empty str, got {type(target).__name__}"
     )
 
 
@@ -389,6 +405,7 @@ def _child_result_from_payload(payload: Any) -> RLMChildResult:
         status=status,
         settled=settled,
         answer_preview=_optional_str("answer_preview"),
+        answer_text=_optional_str("answer_text"),
         error=_optional_str("error"),
         duration_ms=_optional_int("duration_ms"),
         tool_use_count=_optional_int("tool_use_count"),
@@ -485,6 +502,26 @@ async def delete_subagent(target: str | RLMSubagent | RLMSpawnHandle) -> RLMSuba
         )
     payload = await host_request("rlm.delete_subagent", {"target": selector})
     return _subagent_from_payload(payload.get("subagent"), "rlm.delete_subagent")
+
+
+async def rename(new_name: str, *, session_id: str | RLMSpawnHandle | RLMSubagent | None = None) -> str:
+    """Rename this session or one of its direct children.
+
+    Omitting ``session_id`` renames the current session. A spawn handle, a
+    ``list_subagents()`` row, or a session id string renames a direct child;
+    child names are rejected. Names follow spawn rules, must be unique among
+    siblings, and the renamed session sees a transcript notice.
+    """
+    if not isinstance(new_name, str):
+        raise TypeError(f"new_name must be str, got {type(new_name).__name__}")
+    payload: dict[str, Any] = {"name": new_name}
+    if session_id is not None:
+        payload["session_id"] = _collect_target_selector(session_id, "session_id")
+    reply = await host_request("rlm.rename", payload)
+    name = reply.get("name")
+    if not isinstance(name, str):
+        raise RuntimeError("rlm.rename returned an invalid name")
+    return name
 
 
 class _HarnessProxy:
@@ -609,8 +646,9 @@ class _RLMNamespace:
         name: str,
         model: str | None = None,
         thinking: str | None = None,
+        kind: str | None = None,
     ) -> RLMSpawnHandle:
-        return await spawn(prompt, name=name, model=model, thinking=thinking)
+        return await spawn(prompt, name=name, model=model, thinking=thinking, kind=kind)
 
     async def create_session(
         self,
@@ -633,6 +671,14 @@ class _RLMNamespace:
 
     async def delete_subagent(self, target: str | RLMSubagent | RLMSpawnHandle) -> RLMSubagent:
         return await delete_subagent(target)
+
+    async def rename(
+        self,
+        new_name: str,
+        *,
+        session_id: str | RLMSpawnHandle | RLMSubagent | None = None,
+    ) -> str:
+        return await rename(new_name, session_id=session_id)
 
     async def collect(self, targets: Any = None, *, timeout_ms: int = 0) -> list[RLMChildResult]:
         return await collect(targets, timeout_ms=timeout_ms)
@@ -686,6 +732,7 @@ __all__ = [
     "host_request",
     "list_subagents",
     "progress_note",
+    "rename",
     "rlm",
     "spawn",
 ]

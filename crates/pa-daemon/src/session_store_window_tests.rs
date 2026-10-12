@@ -1,15 +1,9 @@
 use super::*;
 
-/// The attribution fold survives the windowed fast open on both sides of
-/// the compaction boundary: an in-window attribution folds into its
-/// retained assistant row, an attribution targeting a discarded-prefix
-/// assistant folds into that raw row too (the fold runs on every read;
-/// the windowed store never loads the row). The windowed store's
-/// `session_stats` equals the full open's — the ACTIVE totals (TS
-/// `buildSessionContext` cuts `state.messages` at the compaction, so
-/// pre-cut spend — own or attributed — stays out; the discarded prefix's
-/// folded aggregate survives only on the whole-file surfaces), never
-/// losing or double-counting the attributed child spend on either path.
+/// The attribution fold survives the windowed fast open on both sides of the
+/// compaction boundary: the windowed store's `session_stats` equals the full
+/// open's — the ACTIVE totals (TS cuts `state.messages` at the compaction) —
+/// never losing or double-counting the attributed child spend.
 #[test]
 fn windowed_open_folds_attributions_on_both_sides_of_the_boundary() {
     let dir = tempfile::tempdir().unwrap();
@@ -65,28 +59,23 @@ fn windowed_open_folds_attributions_on_both_sides_of_the_boundary() {
 
     let windowed = SessionFile::open_windowed(&path).unwrap();
     assert!(windowed.window.is_some());
-    // The retained target folded on the windowed path too (raw entries carry
-    // the attribution rows; the metadata parse order cannot hide the fold).
+    // The retained target folded on the windowed path too (raw entries carry the
+    // attribution rows; the metadata parse order cannot hide the fold).
     assert_eq!(
         windowed.entry(&kept_assistant).unwrap().fields["message"]["usage"]["input"],
         json!(10)
     );
-    // The pre-cut target's fold also rides its raw row (the fold runs on
-    // every read, either side of the boundary), and the windowed store
-    // never loads that row — the discarded prefix stays discarded.
+    // The pre-cut target's fold also rides its raw row (the fold runs on every read,
+    // either side of the boundary), and the windowed store never loads that row.
     let full = SessionFile::open(&path).unwrap();
     assert_eq!(
         full.entry(&old).unwrap().fields["message"]["usage"]["input"],
         json!(150)
     );
     assert!(windowed.entry(&old).is_none());
-    // Windowed and full opens agree on the ACTIVE stats: TS
-    // `buildSessionContext` cuts `state.messages` at the compaction
-    // boundary, so the pre-cut ancestry — including its attribution-folded
-    // aggregate — is spend the active stats must not report; the in-window
-    // attribution rides the folded rows, and neither path loses or
-    // double-counts the attributed spend. (The pre-cut fold survives on
-    // the whole-file surfaces — the saved rows, `/context`.)
+    // Windowed and full opens agree on the ACTIVE stats: the pre-cut ancestry
+    // is spend the active stats must not report (the pre-cut fold survives on
+    // the whole-file surfaces).
     assert_eq!(
         crate::session_stats::session_stats(&windowed, None),
         crate::session_stats::session_stats(&full, None)
@@ -253,11 +242,8 @@ fn captured_window_matches_full_transcript_and_stats() {
     }
 }
 
-/// The summary scalars the old full-clone fold computed: the reverse
-/// `find_map` timestamp and the message count. This is the exact
-/// extraction `summaryForActiveSession` ran over `messages()` before
-/// the scan existed — the reference the scan must reproduce for every
-/// window shape.
+/// The summary scalars the old full-clone fold computed — the reference the
+/// scan must reproduce for every window shape.
 fn fold_reference_scalars(store: &SessionFile) -> (Option<u64>, usize) {
     let messages = store.messages();
     let last_timestamp = messages
@@ -293,20 +279,15 @@ fn usage_of(input: u64, output: u64, cache_read: u64, total: f64) -> Value {
     })
 }
 
-/// One shared walk backs both the materialized fold and the scalar scan, so
-/// across every window shape — plain conversations with non-monotonic
-/// timestamps, custom rows, compaction boundaries (kept id on a message
-/// row, a non-bearing row, and a missing id), stacked compactions, the
-/// empty session, and degenerate rows — the scan must reproduce exactly
-/// the scalars the old full-clone fold computed.
+/// One shared walk backs both the materialized fold and the scalar scan:
+/// across every window shape the scan must reproduce exactly the scalars the
+/// old full-clone fold computed.
 #[test]
 fn scan_message_scalars_match_the_materialized_fold_across_window_shapes() {
     let dir = tempfile::tempdir().unwrap();
 
-    // Plain conversation: non-monotonic timestamps (the reverse find_map
-    // takes the LAST positioned timestamp, not the maximum), an
-    // assistant carrying usage, a custom row, and a toolResult without a
-    // timestamp.
+    // Plain conversation: non-monotonic timestamps (the reverse find_map takes
+    // the LAST positioned timestamp, not the maximum), a custom row, a toolResult.
     {
         let path = dir.path().join("plain.jsonl");
         let mut store = SessionFile::create("/tmp", None, 0);
@@ -339,9 +320,8 @@ fn scan_message_scalars_match_the_materialized_fold_across_window_shapes() {
         assert_eq!(scalars.last_timestamp_ms, Some(200));
     }
 
-    // Compaction with the kept id on a message row: the window keeps the
-    // retained prefix, and the summary message itself counts (its role
-    // is `compactionSummary`, never assistant).
+    // Compaction with the kept id on a message row: the summary message itself
+    // counts (its role is `compactionSummary`, never assistant).
     {
         let path = dir.path().join("kept-on-message.jsonl");
         let mut store = SessionFile::create("/tmp", None, 0);
@@ -361,9 +341,8 @@ fn scan_message_scalars_match_the_materialized_fold_across_window_shapes() {
         assert_eq!(scalars.message_count, 4); // summary + kept + two assistants
     }
 
-    // The kept id on a NON-bearing row never flips the keeping walk (the
-    // fold skips the row before the id check), so the window holds only
-    // the summary plus the post-compaction rows.
+    // The kept id on a NON-bearing row never flips the keeping walk (the fold
+    // skips the row before the id check).
     {
         let path = dir.path().join("kept-on-custom.jsonl");
         let mut store = SessionFile::create("/tmp", None, 0);
@@ -430,8 +409,8 @@ fn scan_message_scalars_match_the_materialized_fold_across_window_shapes() {
         );
     }
 
-    // Degenerate rows: a `message` entry without its persisted message
-    // contributes nothing on either path.
+    // Degenerate rows: a `message` entry without its persisted message contributes
+    // nothing on either path.
     {
         let path = dir.path().join("degenerate.jsonl");
         let mut store = SessionFile::create("/tmp", None, 0);
@@ -446,9 +425,7 @@ fn scan_message_scalars_match_the_materialized_fold_across_window_shapes() {
 }
 
 /// The compaction boundary shapes pin the materialized fold itself (the
-/// scan's reference): the exact windowed sequence, including the summary
-/// message's retained count, the skip of non-bearing rows before the kept
-/// id, and the post-compaction tail.
+/// scan's reference): the exact windowed sequence.
 #[test]
 fn walk_pins_the_compaction_boundary_sequences() {
     let dir = tempfile::tempdir().unwrap();
@@ -491,4 +468,68 @@ fn walk_pins_the_compaction_boundary_sequences() {
     assert_eq!(messages[1]["content"], "u2");
     assert_eq!(messages[2]["role"], "custom");
     assert_eq!(messages[4]["content"], "u3");
+}
+
+fn assert_windowed_restored_settings_match_the_full_open(name: &str, path: &std::path::Path) {
+    let windowed = SessionFile::open_windowed(path).unwrap();
+    assert!(
+        windowed.window.is_some(),
+        "{name}: the windowed reader must engage"
+    );
+    let restored = windowed.restored_settings();
+    let reference = SessionFile::open(path).unwrap().restored_settings();
+    assert_eq!(
+        (
+            restored.model,
+            restored.thinking_level,
+            restored.service_tier
+        ),
+        (
+            reference.model,
+            reference.thinking_level,
+            reference.service_tier
+        ),
+        "{name}"
+    );
+}
+
+#[test]
+fn windowed_restored_settings_match_the_full_open() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("resumed.jsonl");
+    let mut file = SessionFile::create("/tmp", None, 0);
+    file.set_path(path.clone());
+    file.append_entry(
+        "model_change",
+        json!({"provider":"old","modelId":"superseded"}),
+    );
+    file.append_entry("thinking_level_change", json!({"thinkingLevel":"high"}));
+    file.append_entry("service_tier_change", json!({"serviceTier":null}));
+    file.append_message(&json!({
+        "role":"assistant","provider":"old","model":"superseded","api":"openai-responses",
+        "content":[{"type":"text","text":"hello"}],"stopReason":"stop","timestamp":0
+    }));
+    let kept = file.append_message(&json!({"role":"user","content":"kept","timestamp":1}));
+    file.append_entry(
+        "compaction",
+        json!({"summary":"summary","firstKeptEntryId":kept,"tokensBefore":100}),
+    );
+    file.append_entry(
+        "model_change",
+        json!({"provider":"new","modelId":"current"}),
+    );
+    file.append_entry("thinking_level_change", json!({"thinkingLevel":"low"}));
+    file.append_entry("service_tier_change", json!({"serviceTier":"priority"}));
+    file.rewrite().unwrap();
+    assert_windowed_restored_settings_match_the_full_open("changes around the boundary", &path);
+
+    let path = dir.path().join("never-compacted.jsonl");
+    let mut file = SessionFile::create("/tmp", None, 0);
+    file.set_path(path.clone());
+    file.append_entry("model_change", json!({"provider":"p","modelId":"m"}));
+    file.append_entry("thinking_level_change", json!({"thinkingLevel":"medium"}));
+    file.append_entry("service_tier_change", json!({"serviceTier":"flex"}));
+    file.append_message(&json!({"role":"user","content":"hello","timestamp":0}));
+    file.rewrite().unwrap();
+    assert_windowed_restored_settings_match_the_full_open("whole-file window", &path);
 }
