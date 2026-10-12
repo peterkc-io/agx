@@ -132,6 +132,8 @@ fn spawn_supervisor(dir: &Path) -> Supervisor {
     command
         .args(["--mode", "daemon", "--daemon-socket"])
         .arg(&socket)
+        // agx clears inherited internal vars (FR-010); mark the test supervisor so the lost-exit override reaches its workers.
+        .env("AGX_PROCESS", "1")
         .env("PRIME_AGENT_CODING_AGENT_DIR", &agent_dir)
         // The daemon's startup catalog refresh must never reach the network
         // from a test: PI_OFFLINE keeps it on the bundled snapshot.

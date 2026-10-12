@@ -90,7 +90,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/terminal_state_differential_e2e/harness.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/termios_process_exit_e2e.rs` | Linux-only test code; upstream CI is Linux-only. | Linux integration suite (lead-owned). |
 | `crates/pa-cli/tests/view_switch_latency_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
-| `crates/pa-cli/tests/windows_runtime_triage_e2e.rs` | Use agx executable; Linux-only prctl backstop, upstream CI is Linux-only. | Linux integration suite; Windows triage path unchanged. |
+| `crates/pa-cli/tests/windows_runtime_triage_e2e.rs` | Use agx executable; mark test supervisor (FR-010) to preserve lost-exit override; Linux-only prctl backstop, upstream CI is Linux-only. | Linux integration suite; Windows triage path unchanged. |
 | `crates/pa-core/src/agent_traces.rs` | Add the fork-owned public upload guard test module. | Recording test has a reachable HTTP positive control. |
 | `crates/pa-core/src/agent_traces/continuous.rs` | Keep continuous trace upload off in agx builds (consent and request); pa-core unit tests keep upstream behavior. | continuous tests; fork_tests trace refusal; no-upstream-network. |
 | `crates/pa-core/src/agent_traces/tests.rs` | Keep legacy protocol tests on private carried upstream machinery. | Legacy trace unit tests and separate public guard test. |
