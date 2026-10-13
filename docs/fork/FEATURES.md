@@ -2,7 +2,7 @@
 
 agx adds separate runtime state, read-only upstream settings, and forced-off
 telemetry and trace uploads to Prime Agent. This list covers the code at
-[63b60e348][snapshot], not inherited upstream features or planned plugins.
+[c016196e0][snapshot], not inherited upstream features or planned plugins.
 
 Upstream adoption was checked on 2026-10-13 against [d592d5e77][upstream-snapshot].
 “Not proposed” means no covering proposal was found in the upstream PRs and
@@ -51,34 +51,39 @@ new session behavior. Linux-only tests stay available on Linux.
 | ID | Feature or fix | Why it matters | Fork commits | Changed upstream files or behavior | Added in agx | Upstream status |
 | --- | --- | --- | --- | --- | --- | --- |
 | AGX-009 | An upstream change inventory and checker reject unlisted changes and rows for unchanged files. | See what must be reviewed when taking in upstream changes. | [1ec56e169][identity], [217f1fbbe][upstream-merge], [e29276e27][overlay], [63b60e348][overlay-tests] | Fork-owned [change inventory][seams] and [checker][seam-checker]. | [1ec56e169][identity] | Not proposed. |
-| AGX-010 | Fork CI checks format, Clippy, workspace tests and release builds on Linux. It bootstraps the kernel and saves test logs. | Check the complete fork on Linux even when local development uses macOS. | `985d650fb`, `bc22c2cd8` | Fork-owned [workflow](../../.github/workflows/agx-ci.yml) and [failed-test helper](../../scripts/agx/rerun_failed.py). | `985d650fb` | Not proposed. |
-| AGX-011 | Terminal test helpers use macOS-compatible ioctl types and handle the absent Linux-only termios field. | The existing terminal regression tests compile on macOS. | [2106901fd][terminal-fix] | `kitty_*`, `slow_drain_exit_guard_e2e.rs` and [terminal-state test helper][terminal-source]. | [2106901fd][terminal-fix] | Not proposed. |
+| AGX-010 | Fork CI checks format, Clippy, workspace tests and release builds on Linux. It bootstraps the kernel and saves test logs. | Check the complete fork on Linux even when local development uses macOS. | `985d650fb`, `bc22c2cd8`, [1f4613732][sync-automation] | Fork-owned [workflow](../../.github/workflows/agx-ci.yml) and [failed-test helper](../../scripts/agx/rerun_failed.py). | `985d650fb` | Not proposed. |
+| AGX-011 | Terminal test helpers use macOS-compatible ioctl types and handle the absent Linux-only termios field. | The existing terminal regression tests compile on macOS. | [2106901fd][terminal-fix], [c016196e0][bootstrap-merge] | `kitty_*`, `slow_drain_exit_guard_e2e.rs`, `exit_backfill_pty_e2e.rs` and [terminal-state test helper][terminal-source]. | [2106901fd][terminal-fix] | Not proposed. |
 | AGX-012 | Linux-only `prctl`, terminal and `/proc` test code is guarded by the target OS. | macOS builds no longer compile unavailable Linux APIs. Linux still runs the tests. | [1de78b14e][linux-fix], [1ec56e169][identity], [217f1fbbe][upstream-merge] | `interactive_daemon_e2e.rs`, `termios_process_exit_e2e.rs` and `windows_runtime_triage_e2e.rs`. [Linux-only test target][linux-source] | [1de78b14e][linux-fix] | Not proposed. |
 | AGX-013 | The daemon client sets its read timeout once at connection, not again after the peer closes. | On macOS, a close reports the daemon's reason instead of a socket-option error. | [484e73718][timeout-fix] | [Daemon client][timeout-source] connection and read loop. | [484e73718][timeout-fix] | Not proposed. |
-| AGX-014 | The telemetry mirror test holds the shared environment lock across its awaits. | Other tests cannot change opt-out variables while this test checks event delivery. | [164f6d231][mirror-fix] | [Telemetry mirror test][mirror-source]. No production telemetry change. | [164f6d231][mirror-fix] | Adopted in upstream [PR #3520][mirror-upstream] at [f14db8553][mirror-upstream-commit]. Still carried until the next sync. |
 | AGX-015 | The worker-recovery test marks its supervisor as an agx child so its test override reaches the workers. | The recovery test exercises the lost-exit case instead of losing its setup during startup isolation. | [8392a0d69][triage-fix] | [Windows-runtime recovery test][triage-source]. No production recovery change. | [8392a0d69][triage-fix] | Not proposed. |
 
 ### CI location and adoption
 
-The fork CI files are fork-owned and run on demand.
+The fork CI files are fork-owned. The workflow runs on `wip/**` pushes, pull
+requests to `main`, manual dispatch and calls from the sync workflow.
+
+This sync removed the fork copy of AGX-014, the telemetry mirror race fix.
+Upstream [PR #3520][mirror-upstream] at [f14db8553][mirror-upstream-commit]
+now supplies the shared environment lock. The ID is retired, not reused.
 
 A sync reviewer confirms adoption by reading upstream code, not only a PR title.
 Partial adoption keeps the row and names what remains. Full adoption names the
 upstream PR and commit or version, then prompts removal of the fork's copy.
 This document links existing upstream work; it does not create an upstream proposal.
 
-[snapshot]: https://github.com/peterkc-io/agx/commit/63b60e348bc111fc93ff49e2ed135905e6cec967
+[snapshot]: https://github.com/peterkc-io/agx/commit/c016196e0970025c17fd9d378e210ad5c4490286
 [upstream-snapshot]: https://github.com/PrimeIntellect-ai/prime-agent/commit/d592d5e7746408fe9097541af96d3239e263f7a1
 [identity]: https://github.com/peterkc-io/agx/commit/1ec56e169a8668d249620f8f926e6cfdfc744a90
 [rename]: https://github.com/peterkc-io/agx/commit/9b96e7aa58f5f17b001892d90934d87041972665
 [isolation-fix]: https://github.com/peterkc-io/agx/commit/b9bb00512d7d6c1deafa71aa10ac2b31d643252b
 [upstream-merge]: https://github.com/peterkc-io/agx/commit/217f1fbbecf2bf933c2684b6fd21f2c7baf9229e
+[bootstrap-merge]: https://github.com/peterkc-io/agx/commit/c016196e0970025c17fd9d378e210ad5c4490286
+[sync-automation]: https://github.com/peterkc-io/agx/commit/1f4613732858b1174693a9466aadd06f8bc93fdb
 [overlay]: https://github.com/peterkc-io/agx/commit/e29276e274f17c04e28e668feaac1e45082a705d
 [overlay-tests]: https://github.com/peterkc-io/agx/commit/63b60e348bc111fc93ff49e2ed135905e6cec967
 [terminal-fix]: https://github.com/peterkc-io/agx/commit/2106901fdf15ef57353ea727a090084ceeb23c64
 [linux-fix]: https://github.com/peterkc-io/agx/commit/1de78b14e2fc6ec52b5752f94a7bb55cb1b0cc23
 [timeout-fix]: https://github.com/peterkc-io/agx/commit/484e7371815a5bd59c47696dc384272eb06c83c8
-[mirror-fix]: https://github.com/peterkc-io/agx/commit/164f6d231aa14f56be91aee8fa861e26e7af91fb
 [triage-fix]: https://github.com/peterkc-io/agx/commit/8392a0d6917017273212f808410fa08c3fe9df40
 [mirror-upstream]: https://github.com/PrimeIntellect-ai/prime-agent/pull/3520
 [mirror-upstream-commit]: https://github.com/PrimeIntellect-ai/prime-agent/commit/f14db8553a3852c22dbcfcdc0392616b37127ee5
@@ -95,5 +100,4 @@ This document links existing upstream work; it does not create an upstream propo
 [terminal-source]: ../../crates/pa-cli/tests/terminal_state_differential_e2e/harness.rs
 [linux-source]: ../../crates/pa-cli/tests/termios_process_exit_e2e.rs
 [timeout-source]: ../../crates/pa-cli/src/daemon_client.rs
-[mirror-source]: ../../crates/pa-core/src/session_engine/telemetry/tests.rs
 [triage-source]: ../../crates/pa-cli/tests/windows_runtime_triage_e2e.rs
