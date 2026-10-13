@@ -16,9 +16,11 @@ lead-owned. Windows runtime behavior is not checked on the macOS host.
 
 The old three installer-download scenarios are unreachable in agx and are
 replaced by three no-network refusal scenarios through Cargo's existing test
-target. No other test is deleted or newly ignored. The two Linux-only test
-files retain their Linux coverage. Their macOS code exclusions are distinct
-from accepted flakes. The prerequisite platform adjustments are intentional.
+target. The fork deletes or newly ignores no other test. Upstream #3522 removes the
+Decision API and its tests; the user chose that removal, with no replacement
+coverage because the feature is no longer present. The remaining Linux-only
+test file retains its Linux coverage. Its macOS code exclusion is distinct
+from accepted host failures. The prerequisite platform adjustments remain.
 
 Upstream PR #3339 is merged in the recorded upstream-first base
 `2ee7e623a70d8ccd9c72ffc6c4f25be2cc1bc02d`. Its shutdown-close coverage is
@@ -99,7 +101,6 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/src/kernel/bootstrap/venv/layout.rs` | Keep the writable-dir fallback in the fork namespace; the entry point supplies the normal default. | Unchanged venv_dir_honors_override test; native library suite. |
 | `crates/pa-core/src/kernel/manager/startup.rs` | Remove internal role variables at the kernel spawn. | Actual session ipython environment inspection. |
 | `crates/pa-core/src/session_engine/telemetry/status.rs` | Force release off before env/settings; endpoint None in every build; read the debug persistence assertion from the overlay. | Release-rule and retained debug telemetry tests; overlay tests. |
-| `crates/pa-core/src/session_engine/telemetry/tests.rs` | Serialize the unchanged mirror test with the approved ENV_MUTEX prerequisite. | Full native library tests; original mirror and switch assertions retained. |
 | `crates/pa-core/src/tools/bash_local.rs` | Remove internal role variables immediately before bash spawn. | Actual BashOperations spawn and session kernel bash-helper environment inspection. |
 | `crates/pa-core/tests/abort_kernel_cell.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/kernel_capture_freshness.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
@@ -149,3 +150,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/src/client_settings.rs` | Read persisted client-setting assertions from the overlay without removing any assertions. | Client-settings unit tests. |
 | `crates/pa-core/src/refinement/mod.rs` | factory gate reads the agx overlay like the kernel (FR-043) | refinement factory_enabled overlay tests; test_agx_settings.py |
 | `crates/pa-core/src/agent_traces/continuous/tests.rs` | Remove the overlay after the consent snapshot instead of the now-read-only base; retain all existing intent/delivery assertions. | settings race trace test; full agent_traces unit check. |
+| `crates/pa-cli/tests/print_inline_subagents_e2e.rs` | Use the agx binary in the new inline-subagent verifier. | Inline print e2e; workspace checks. |
+| `crates/pa-daemon/tests/orphan_journal_e2e.rs` | Mark the new test supervisor as agx so workers use fork runtime paths. | Orphan journal e2e; workspace checks. |
+| `crates/pa-daemon/tests/rlm_child_usage_attribution_e2e.rs` | Mark the new test supervisor as agx so workers use fork runtime paths. | Child usage attribution e2e; workspace checks. |
+| `crates/pa-cli/tests/exit_backfill_pty_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |

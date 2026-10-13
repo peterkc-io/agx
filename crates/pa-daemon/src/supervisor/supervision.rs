@@ -12,6 +12,58 @@ use super::{
 use crate::lease::is_process_alive;
 use crate::registry::WorkerRelay;
 
+/// The immutable cleanup identity of one worker process lifetime.
+#[derive(Clone, Debug)]
+pub(super) struct OrphanGeneration {
+    pub(super) pid: u32,
+    pub(super) path: String,
+}
+
+impl OrphanGeneration {
+    pub(super) fn from_descriptor(
+        descriptor: &crate::descriptor::WorkerDescriptor,
+    ) -> Option<Self> {
+        Some(Self {
+            pid: u32::try_from(descriptor.pid).ok()?,
+            path: descriptor.orphan_process_journal_path.clone()?,
+        })
+    }
+
+    /// The caller has observed this generation exit; no resident lookup or
+    /// fallible liveness recheck may substitute a different process here.
+    async fn reap(&self) {
+        let generation = self.clone();
+        let _ = tokio::task::spawn_blocking(move || {
+            if let Ok(pid) = i32::try_from(generation.pid) {
+                pa_core::kernel::orphan_journal::reap_worker_orphan_processes(
+                    std::path::Path::new(&generation.path),
+                    pid,
+                );
+            }
+        })
+        .await;
+    }
+}
+
+/// A child and its cleanup identity must survive descriptor replacements together.
+#[derive(Debug)]
+pub(crate) struct SpawnedWorker {
+    child: Child,
+    orphan_generation: OrphanGeneration,
+}
+
+impl SpawnedWorker {
+    pub(crate) fn id(&self) -> Option<u32> {
+        self.child.id()
+    }
+
+    pub(crate) async fn kill(&mut self) -> std::io::Result<()> {
+        self.child.kill().await?;
+        self.orphan_generation.reap().await;
+        Ok(())
+    }
+}
+
 pub(super) const MAX_CONSECUTIVE_FAILURES: u32 = 5;
 /// A crash-path child that lived at least this long proved health: its death resets
 /// the failure count instead of accumulating toward the give-up cap.
@@ -69,24 +121,50 @@ impl Supervisor {
     pub(super) fn spawn_monitor(
         self: &Arc<Self>,
         resident: Arc<ResidentWorker>,
-        child: Option<Child>,
+        child: Option<SpawnedWorker>,
         pid: u64,
+        orphan_generation: Option<OrphanGeneration>,
     ) {
         let supervisor = Arc::clone(self);
-        tokio::spawn(async move {
-            supervisor.watch_worker(resident, child, pid).await;
-        });
+        tokio::spawn(supervisor.watch_worker(resident, child, pid, orphan_generation));
     }
 
-    pub(super) async fn watch_worker(
+    /// Watch one process lifetime for the resident. The generation claim is
+    /// synchronous, so the newest arm owns the resident before its task is
+    /// even polled: a watch whose generation a later arm superseded returns
+    /// at the exit check instead of running crash bookkeeping over the new
+    /// owner's process.
+    pub(super) fn watch_worker(
         self: Arc<Self>,
         resident: Arc<ResidentWorker>,
-        mut child: Option<Child>,
+        child: Option<SpawnedWorker>,
+        adopted_pid: u64,
+        orphan_generation: Option<OrphanGeneration>,
+    ) -> impl std::future::Future<Output = ()> {
+        let monitor_epoch = resident.monitor_epoch.fetch_add(1, Ordering::SeqCst) + 1;
+        self.watch_worker_owned(
+            resident,
+            child,
+            adopted_pid,
+            monitor_epoch,
+            orphan_generation,
+        )
+    }
+
+    async fn watch_worker_owned(
+        self: Arc<Self>,
+        resident: Arc<ResidentWorker>,
+        mut child: Option<SpawnedWorker>,
         mut adopted_pid: u64,
+        monitor_epoch: u64,
+        mut orphan_generation: Option<OrphanGeneration>,
     ) {
         loop {
             if let Some(mut child) = child.take() {
-                let status = child.wait().await;
+                let status = child.child.wait().await;
+                if status.is_ok() {
+                    child.orphan_generation.reap().await;
+                }
                 if resident.intentional_stop.load(Ordering::SeqCst)
                     || self.shutting_down.load(Ordering::SeqCst)
                 {
@@ -104,27 +182,40 @@ impl Supervisor {
                 // to watch, and a watch on pid 0 would report a phantom
                 // exit; fall straight to the failure/backoff/relaunch arm
                 // instead.
-                if let Err(error) =
-                    pa_core::platform::process::wait_for_exit(adopted_pid as u32).await
+                let exited = match pa_core::platform::process::wait_for_exit(adopted_pid as u32)
+                    .await
                 {
-                    // The slow fallback, only where the kernel exit watch
-                    // cannot register.
-                    self.log_line(&format!(
-                        "session worker {}: kernel exit watch unavailable ({error}); polling liveness every {}s",
-                        resident.worker_id,
-                        ADOPTED_EXIT_FALLBACK_POLL.as_secs()
-                    ));
-                    while matches!(is_process_alive(adopted_pid as u32), Ok(true)) {
-                        tokio::time::sleep(ADOPTED_EXIT_FALLBACK_POLL).await;
+                    Ok(()) => true,
+                    Err(error) => {
+                        self.log_line(&format!(
+                            "session worker {}: kernel exit watch unavailable ({error}); polling liveness every {}s",
+                            resident.worker_id, ADOPTED_EXIT_FALLBACK_POLL.as_secs()
+                        ));
+                        loop {
+                            match is_process_alive(adopted_pid as u32) {
+                                Ok(false) => break true,
+                                Ok(true) => tokio::time::sleep(ADOPTED_EXIT_FALLBACK_POLL).await,
+                                Err(_) => break false,
+                            }
+                        }
                     }
+                };
+                if let Some(generation) = orphan_generation.take().filter(|_| exited) {
+                    generation.reap().await;
                 }
-                // A relaunch elsewhere (update abandon, retry) took over the
-                // resident with a new process.
-                if self.is_stopping(&resident)
-                    || resident.descriptor.lock().await.pid != adopted_pid
-                {
+                // Manual retry still replaces the descriptor's pid without
+                // arming a monitor. Preserve that handoff fence alongside
+                // generation ownership so the predecessor's exit cannot
+                // enter crash recovery over the retry's replacement.
+                if resident.descriptor.lock().await.pid != adopted_pid {
                     return;
                 }
+            }
+            // The exit is the watched process's, not the resident's: a later
+            // monitor arm (a registration re-arm, an update abandon) owns the
+            // resident now.
+            if self.superseded(&resident, monitor_epoch) {
+                return;
             }
             self.note_daemon_event("worker_exited", Some("crash"));
             // A hard-killed parent bypasses every worker-side close (#246): close the
@@ -146,17 +237,30 @@ impl Supervisor {
                 descriptor.lifecycle = DaemonWorkerLifecycle::Failed;
                 descriptor.last_failure_at = Some(util::now_iso());
                 let journal_path = descriptor.recovery_journal_path.clone();
+                let owner_pid = descriptor.pid as u32;
+                let owner_start_id = descriptor.process_start_id.clone();
                 let _ = persist_worker(&resident.descriptor_path, &descriptor);
                 drop(descriptor);
                 // The give-up settles its own revival evidence: the journal's busy records
                 // are what a later boot reads as "interrupted live work" — the give-up
                 // verdict must outlive them.
-                if let Err(error) = crate::journal::WorkerRecoveryJournal::settle_busy_records(
-                    std::path::Path::new(&journal_path),
-                    "worker_gave_up",
+                if super::worker_lifecycle::recovery_journal_owner_is_gone(
+                    is_process_alive(owner_pid).ok(),
+                    owner_start_id.as_deref(),
+                    crate::lease::get_process_start_id(owner_pid).as_deref(),
                 ) {
+                    if let Err(error) = crate::journal::WorkerRecoveryJournal::settle_busy_records(
+                        std::path::Path::new(&journal_path),
+                        "worker_gave_up",
+                    ) {
+                        self.log_line(&format!(
+                            "session worker {} give-up journal settle failed: {error:#}",
+                            resident.worker_id
+                        ));
+                    }
+                } else {
                     self.log_line(&format!(
-                        "session worker {} give-up journal settle failed: {error:#}",
+                        "session worker {} give-up journal preserved: owner death is unproven",
                         resident.worker_id
                     ));
                 }
@@ -190,6 +294,13 @@ impl Supervisor {
                 resident.worker_id
             ));
             tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+            // The backoff can span a registration re-arm or an update
+            // commit's abandon: both claim the resident while this watch
+            // slept, and a superseded watch must not relaunch a second
+            // worker next to the new owner's.
+            if self.superseded(&resident, monitor_epoch) {
+                return;
+            }
             match self.relaunch_worker(&resident).await {
                 Ok(new_child) => {
                     // No counter reset on a successful relaunch: a spawn that dies fast must
@@ -221,6 +332,13 @@ impl Supervisor {
             || resident.intentional_stop.load(Ordering::SeqCst)
     }
 
+    /// Whether this watch no longer owns the resident's process: the stop
+    /// flag is read before the generation, so an update abandon's clear and
+    /// bump can never both slip past the same check.
+    fn superseded(&self, resident: &Arc<ResidentWorker>, monitor_epoch: u64) -> bool {
+        self.is_stopping(resident) || resident.monitor_epoch.load(Ordering::SeqCst) != monitor_epoch
+    }
+
     /// Whether the supervisor is tearing down (long-lived daemon tasks
     /// poll this instead of holding their own shutdown wiring).
     pub(crate) fn is_shutting_down(&self) -> bool {
@@ -231,7 +349,7 @@ impl Supervisor {
     pub(crate) async fn relaunch_worker(
         self: &Arc<Self>,
         resident: &Arc<ResidentWorker>,
-    ) -> Result<Child> {
+    ) -> Result<SpawnedWorker> {
         if self.is_stopping(resident) {
             return Err(anyhow!("supervisor is shutting down"));
         }
@@ -264,12 +382,12 @@ impl Supervisor {
             // discloses the aborted run in the rebuilt transcript, and the record is
             // consumed by the reply.
             let pending = {
-                let mut journal = self
-                    .compaction_journal
-                    .lock()
-                    .expect("compaction journal lock");
-                match journal.pending(&descriptor.root_active_session_id) {
-                    Ok(pending) => pending.cloned(),
+                match self.with_compaction_journal(|journal| {
+                    Ok(journal
+                        .pending(&descriptor.root_active_session_id)?
+                        .cloned())
+                }) {
+                    Ok(pending) => pending,
                     Err(error) => {
                         self.log_line(&format!(
                             "terminal compaction journal retry failed for {}: {error:#}",
@@ -359,11 +477,8 @@ impl Supervisor {
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(false);
             if persisted {
-                if let Err(error) = self
-                    .compaction_journal
-                    .lock()
-                    .expect("compaction journal lock")
-                    .consume(&root_active_session_id)
+                if let Err(error) =
+                    self.with_compaction_journal(|journal| journal.consume(&root_active_session_id))
                 {
                     self.log_line(&format!(
                         "terminal compaction journal consume failed for {root_active_session_id}: {error:#}"
@@ -403,11 +518,20 @@ impl Supervisor {
         resident: &Arc<ResidentWorker>,
         connect_deadline: tokio::time::Instant,
         spawn_record_sync: TempSync,
-    ) -> Result<Child> {
+    ) -> Result<SpawnedWorker> {
         // One env definition for spawn and for the update roster's `launch_env` row
         // (spec §8: "env snapshot to respawn the worker identically").
-        let (worker_socket, cwd, launch_env) = {
-            let descriptor = resident.descriptor.lock().await;
+        let (worker_socket, cwd, launch_env, orphan_path) = {
+            let mut descriptor = resident.descriptor.lock().await.clone();
+            // Each process lifetime owns a different file. An old owner's
+            // in-flight reap must never clear a replacement's journal.
+            let orphan_path = crate::journal::orphan_journal_path(
+                &self.descriptor_dir,
+                &format!("{}-{}", resident.worker_id, uuid::Uuid::new_v4()),
+            )
+            .to_string_lossy()
+            .into_owned();
+            descriptor.orphan_process_journal_path = Some(orphan_path.clone());
             (
                 PathBuf::from(&descriptor.socket_path),
                 descriptor
@@ -423,6 +547,7 @@ impl Supervisor {
                     &uuid::Uuid::new_v4().to_string(),
                     &descriptor,
                 ),
+                orphan_path,
             )
         };
 
@@ -448,6 +573,13 @@ impl Supervisor {
         let child = command
             .spawn()
             .with_context(|| format!("spawn session worker {}", resident.worker_id))?;
+        let child = SpawnedWorker {
+            orphan_generation: OrphanGeneration {
+                pid: child.id().unwrap_or(0),
+                path: orphan_path.clone(),
+            },
+            child,
+        };
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.as_millis() as u64);
@@ -455,13 +587,16 @@ impl Supervisor {
         if std::env::var("PA_DAEMON_DEBUG").is_ok() {
             eprintln!("[supervisor] spawned worker pid {:?}", child.id());
         }
-        {
+        let spawn_record = {
             let mut descriptor = resident.descriptor.lock().await;
             // Capture the child's start identity alongside its pid (TS `getProcessStartId`
             // at spawn): the holder checks need it to recognize a recycled pid.
             let child_pid = child.id().unwrap_or(0);
             descriptor.pid = u64::from(child_pid);
             descriptor.process_start_id = crate::protocol::process_start_id(child_pid);
+            // Publish the path with its owner identity, never against the
+            // previous generation's pid before the spawn succeeds.
+            descriptor.orphan_process_journal_path = Some(orphan_path);
             descriptor.lifecycle = DaemonWorkerLifecycle::Starting;
             // The spawn record's durability is per launch class
             // (`spawn_record_sync`): a fresh create rides the TS
@@ -476,7 +611,15 @@ impl Supervisor {
             // lose the descriptor's whole payload — the recovery journal
             // pointer and the durable create command the next boot's
             // revival replays.
-            let _ = persist_worker_at(&resident.descriptor_path, &descriptor, spawn_record_sync);
+            persist_worker_at(&resident.descriptor_path, &descriptor, spawn_record_sync)
+        };
+        // Fail closed: a spawn record that could not land would leave the
+        // successor boot adopting this pid as live (or a recycled pid as the
+        // worker), so the launch is rolled back instead of left unrecorded.
+        if let Err(error) = spawn_record {
+            let mut child = child;
+            let _ = child.kill().await;
+            return Err(error).context("persist spawned worker identity");
         }
 
         // A worker that never comes up inside the connect budget is killed here, so a
@@ -676,19 +819,17 @@ impl Supervisor {
                                     }
                                 }
                                 Some("compaction_end") => {
-                                    let clear_error = {
-                                        let mut journal = reader_supervisor
-                                            .compaction_journal
-                                            .lock()
-                                            .expect("compaction journal lock");
-                                        reader_resident.compaction.observe_end();
-                                        active_session_id.as_deref().and_then(|active_session_id| {
-                                            // A failed clear keeps the record pending
-                                            // (write-before-forget, so memory and disk agree);
-                                            // retried by the next forwarded end.
-                                            journal.clear(active_session_id).err()
+                                    let clear_error = reader_supervisor
+                                        .with_compaction_journal(|journal| {
+                                            reader_resident.compaction.observe_end();
+                                            if let Some(active_session_id) =
+                                                active_session_id.as_deref()
+                                            {
+                                                journal.clear(active_session_id)?;
+                                            }
+                                            Ok(())
                                         })
-                                    };
+                                        .err();
                                     if let Some(error) = clear_error {
                                         reader_supervisor.log_line(&format!(
                                             "terminal compaction journal clear failed for {active_session_id:?}: {error:#}"
