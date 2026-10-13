@@ -1,0 +1,51 @@
+# Fork-owned vouch gate. Never check out pull request code with a write token.
+name: agx-contribution-gate
+
+on:
+  issues:
+    types: [opened, reopened]
+  pull_request_target:
+    types: [opened, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  issue:
+    name: Check issue author
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Prepare the Discussions reply
+        run: |
+          printf '%s\n' 'This contribution is closed because its author is not vouched. Please start in Discussions: https://github.com/{owner}/{repo}/discussions.' > "$RUNNER_TEMP/agx-unvouched"
+      - uses: mitchellh/vouch/action/check-issue@d66fa29a64600490892131ad87597c30c91fcac4 # v1
+        with:
+          issue-number: ${{ github.event.issue.number }}
+          vouched-file: .github/AGX_VOUCHED.td
+          template-file: ${{ runner.temp }}/agx-unvouched
+          auto-close: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  pull-request:
+    name: Check pull request author
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Prepare the Discussions reply
+        run: |
+          printf '%s\n' 'This contribution is closed because its author is not vouched. Please start in Discussions: https://github.com/{owner}/{repo}/discussions.' > "$RUNNER_TEMP/agx-unvouched"
+      - uses: mitchellh/vouch/action/check-pr@d66fa29a64600490892131ad87597c30c91fcac4 # v1
+        with:
+          pr-number: ${{ github.event.pull_request.number }}
+          vouched-file: .github/AGX_VOUCHED.td
+          template-file: ${{ runner.temp }}/agx-unvouched
+          auto-close: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

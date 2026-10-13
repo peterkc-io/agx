@@ -1,0 +1,131 @@
+# agx fork CI: the four `make check` commands, as the Makefile has them, in
+# one job on one runner. Fork-owned (agx-*), so it is not an upstream seam.
+#
+# One job, not upstream ci.yml's eight test shards: each shard recompiles its
+# test binaries, so sharding buys wall-clock time with extra runner minutes.
+# The fork runs this check rarely (wip branches, later fork PRs and the sync
+# job), so one warm-cached job is the cheaper shape.
+#
+# Runner choice, first match wins:
+#   1. the `runner` input of a manual dispatch;
+#   2. the repository variable AGX_CI_RUNNER (switch runners without an edit);
+#   3. ubuntu-24.04 (GitHub-hosted x64).
+# Blacksmith bills free-tier minutes per 2 vCPU: an 8 vCPU minute costs 4.
+# ubuntu-24.04 (GitHub-hosted) is free for a public repository, but slower.
+name: agx-ci
+
+on:
+  # A pushed wip/** branch runs the check without touching main.
+  push:
+    branches: ["wip/**"]
+  pull_request:
+    branches: [main]
+  workflow_call:
+    inputs:
+      merge-upstream:
+        description: "Upstream head to merge into main before checks (empty checks the current ref)"
+        required: false
+        type: string
+        default: ""
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "Runner label (default: the AGX_CI_RUNNER variable, else ubuntu-24.04)"
+        required: false
+        type: choice
+        default: default
+        options:
+          - default
+          - blacksmith-4vcpu-ubuntu-2404
+          - blacksmith-8vcpu-ubuntu-2404
+          - blacksmith-16vcpu-ubuntu-2404
+          - blacksmith-8vcpu-ubuntu-2404-arm
+          - ubuntu-24.04
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agx-ci-${{ github.ref }}-${{ inputs.merge-upstream }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Some upstream tests hash git commits made with zone-less dates.
+  TZ: UTC
+
+jobs:
+  check:
+    name: make check
+    runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.merge-upstream != '' && 'main' || github.ref }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Check the upstream seam ledger
+        run: |
+          git fetch --no-tags origin refs/heads/upstream-main:refs/remotes/origin/upstream-main
+          python3 scripts/agx/check_seams.py --base origin/upstream-main
+      - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin; the SHA selects the toolchain
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          cache-on-failure: true
+          shared-key: agx-ci
+      - name: Install uv (the kernel venv bootstrap below uses it)
+        run: |
+          python3 -m pip install --user uv
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: cargo fmt --all --check
+        run: cargo fmt --all --check
+      - name: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      # The kernel e2e suites need a ready kernel venv (upstream ci.yml's
+      # bootstrap step); the bootstrap needs the debug prime-agent binary.
+      # The fork renames the CLI binary to agx; upstream names it prime-agent.
+      # Use whichever this checkout builds, so the same file runs on both.
+      - name: Build the workspace bins and bootstrap the kernel venv
+        run: |
+          cargo build --workspace --bins
+          bin=./target/debug/agx
+          [ -x "$bin" ] || bin=./target/debug/prime-agent
+          "$bin" --prime-agent-bootstrap
+      # --no-fail-fast runs every test binary after a failure, so one run
+      # gives the full failure and ignored-test list. The pass/fail result is
+      # the same as `make check`'s plain `cargo test --workspace`.
+      - name: cargo test --workspace
+        id: test
+        shell: bash
+        run: cargo test --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/cargo-test.log"
+      # The known-flake rule (docs/fork/SYNC.md): each failed test, alone,
+      # 20 times. The counts go to the job summary; the job stays failed.
+      - name: Rerun each failed test alone 20 times
+        if: failure() && steps.test.conclusion == 'failure'
+        run: python3 scripts/agx/rerun_failed.py "$RUNNER_TEMP/cargo-test.log" 20
+      - name: Upload the test log (the ignored and flaky test record)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cargo-test-log
+          path: ${{ runner.temp }}/cargo-test.log
+          if-no-files-found: ignore
+          retention-days: 14
+      # Build the release even when tests failed, so one run also proves the
+      # release build. The job still fails on any test failure.
+      - name: cargo build --release --workspace
+        if: ${{ !cancelled() && (steps.test.conclusion == 'success' || steps.test.conclusion == 'failure') }}
+        run: cargo build --release --workspace
