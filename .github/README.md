@@ -8,15 +8,17 @@ A Prime Agent fork with a separate executable and runtime namespace.
 - [Startup environment reset](../docs/fork/FORK.md) prevents inherited upstream roles from selecting a fork process mode.
 - [Updates, telemetry, and trace uploads are disabled](../docs/fork/FORK.md) in the foundation.
 - [A local native bundle installer](../docs/fork/INSTALL.md) leaves the upstream installation intact.
-- [Settings overlays and plugins are planned](../docs/fork/FORK.md), not implemented.
+- [A settings overlay](../docs/fork/FEATURES.md) keeps agx global edits out of upstream's `settings.json`.
+- Plugins remain planned, not implemented.
 
 ## Start here
 
-Read [the fork comparison and compatibility boundaries](../docs/fork/FORK.md).
+Read [the agx features, fixes and compatibility limits](../docs/fork/FEATURES.md).
 Use [the local installation instructions](../docs/fork/INSTALL.md), not the
 upstream installer, for `agx`.
 
-Settings and sessions are shared in this foundation. Root `README.md` remains
+Sessions and base settings are shared. agx writes its own settings overlay.
+Root `README.md` remains
 upstream material. [The seam ledger](../docs/fork/SEAMS.md) records changes to
 upstream files.
 
