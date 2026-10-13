@@ -76,7 +76,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/kitty_exit_routes_e2e/main.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/kitty_release_handoff_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/kitty_verdict_time_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
-| `crates/pa-cli/tests/lock_compat_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
+| `crates/pa-cli/tests/lock_compat_e2e.rs` | Use agx; test overlay locks (FR-019), keeping TS base-file cases. | CLI lock integration tests and Linux suites. |
 | `crates/pa-cli/tests/mcp_view_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/package_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/package_resources_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
@@ -86,7 +86,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/slow_drain_exit_guard_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/subagent_panel_nav_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/subagent_panel_nested_count_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
-| `crates/pa-cli/tests/telemetry_command_e2e.rs` | Use Cargo executable agx; retain upstream debug telemetry assertions. | Original debug command integration test and exact telemetry regressions. |
+| `crates/pa-cli/tests/telemetry_command_e2e.rs` | Use agx; read the overlay and assert no base-file creation (FR-019). | Original telemetry command round-trip and opt-out assertions. |
 | `crates/pa-cli/tests/terminal_state_differential_e2e/harness.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/termios_process_exit_e2e.rs` | Linux-only test code; upstream CI is Linux-only. | Linux integration suite (lead-owned). |
 | `crates/pa-cli/tests/view_switch_latency_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |

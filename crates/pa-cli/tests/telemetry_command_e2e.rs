@@ -26,8 +26,8 @@ fn run(sandbox: &Path, args: &[&str], env: &[(&str, &str)]) -> (Option<i32>, Str
 }
 
 fn saved_switch(sandbox: &Path) -> serde_json::Value {
-    let text = std::fs::read_to_string(sandbox.join("agent").join("settings.json"))
-        .expect("settings.json written");
+    let text = std::fs::read_to_string(sandbox.join("agent").join("settings-agx.json"))
+        .expect("settings-agx.json written");
     serde_json::from_str::<serde_json::Value>(&text).expect("settings json")["telemetry"]["enabled"]
         .clone()
 }
@@ -46,6 +46,7 @@ fn status_on_and_off_round_trip() {
     assert_eq!(code, Some(0), "{out}");
     assert!(out.contains("Telemetry turned off."), "{out}");
     assert_eq!(saved_switch(sandbox), serde_json::json!(false));
+    assert!(!sandbox.join("agent").join("settings.json").exists());
     let (_, out) = run(sandbox, &["telemetry", "status"], &[]);
     assert!(
         out.contains("Telemetry is off (turned off in settings)."),

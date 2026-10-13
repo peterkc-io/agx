@@ -23,6 +23,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use pa_core::platform::LockDir;
+#[path = "../../agx-settings/tests/lock_compat.rs"]
+mod agx_overlay;
 
 /// The TS binary ground truth, located like `differential_cli.rs`
 /// (`PA_TS_BINARY` or `prime-agent` on PATH; skipped when absent).
@@ -251,7 +253,7 @@ fn ts_binary_sees_a_rust_held_lock_as_contention() {
 fn rust_binary_reclaims_stale_lock_directory_artifact() {
     let rust = PathBuf::from(env!("CARGO_BIN_EXE_agx"));
     let sandbox = sandbox("rs-stale-dir");
-    seed_stale_lock_dir(&sandbox);
+    agx_overlay::seed_stale_lock_dir(&sandbox);
     let (exit, stdout, stderr) = run(
         &rust,
         &[
@@ -265,11 +267,12 @@ fn rust_binary_reclaims_stale_lock_directory_artifact() {
     );
     assert_eq!(exit, Some(0), "stdout: {stdout:?}, stderr: {stderr:?}");
     assert_server_added(&stdout, "http-four");
-    assert_settings_has_server(&sandbox, "http-four");
+    agx_overlay::assert_settings_has_server(&sandbox, "http-four");
     assert!(
-        !lock_path(&sandbox).exists(),
+        !agx_overlay::lock_path(&sandbox).exists(),
         "the released lock directory must be gone"
     );
+    assert!(!settings_path(&sandbox).exists());
 }
 
 #[test]
@@ -278,7 +281,7 @@ fn rust_binary_heals_stale_lock_file_artifact() {
     // binary removes the foreign artifact and proceeds; the TS binary cannot.
     let rust = PathBuf::from(env!("CARGO_BIN_EXE_agx"));
     let sandbox = sandbox("rs-stale-file");
-    seed_stale_lock_file(&sandbox);
+    agx_overlay::seed_stale_lock_file(&sandbox);
     let (exit, stdout, stderr) = run(
         &rust,
         &[
@@ -292,9 +295,10 @@ fn rust_binary_heals_stale_lock_file_artifact() {
     );
     assert_eq!(exit, Some(0), "stdout: {stdout:?}, stderr: {stderr:?}");
     assert_server_added(&stdout, "http-five");
-    assert_settings_has_server(&sandbox, "http-five");
+    agx_overlay::assert_settings_has_server(&sandbox, "http-five");
     assert!(
-        !lock_path(&sandbox).exists(),
+        !agx_overlay::lock_path(&sandbox).exists(),
         "the healed artifact must be gone; release removes the lock directory"
     );
+    assert!(!settings_path(&sandbox).exists());
 }
