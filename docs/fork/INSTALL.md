@@ -17,9 +17,10 @@ settings/sessions -> ~/.prime/agent/ (shared with upstream)
 The local installer supports Unix hosts. Windows runtime pipe names use the
 `agx-` prefix, but this installer does not install Windows binaries.
 
-**Settings and sessions are still shared.** The foundation does not provide a
-settings overlay. `PRIME_AGENT_CODING_AGENT_DIR` and the existing session-dir
-overrides remain supported.
+**Base settings and sessions are still shared.** agx writes global changes only
+to [settings-agx.json](FEATURES.md#agx-007). `settings.json` stays read-only.
+`PRIME_AGENT_CODING_AGENT_DIR` and the existing session-dir overrides remain
+supported.
 
 The installer writes only the `agx` launcher and bundle. It does not replace
 `prime-agent`, its installation, or its kernel venv. Bundled runtime assets can
@@ -76,9 +77,10 @@ socket paths reject the upstream `prime-agent-<uid or user>` and
 Existing symlink parents are resolved for this check.
 
 Release usage telemetry and all public trace uploads stay off even if shared
-settings opt in. Debug builds retain upstream usage telemetry and its local
-mirror for tests; use an isolated HOME. The release client still creates the
-shared `telemetry.json` installation-id file, but never writes `telemetry.jsonl`.
+settings opt in. Release builds never write `telemetry.jsonl`. Debug builds
+write the `telemetry.jsonl` mirror for tests when telemetry is enabled. Use an
+isolated HOME. The release client still creates the shared `telemetry.json`
+installation-id file.
 
 The executable sets its default venv through `PRIME_AGENT_KERNEL_VENV` before
 command dispatch. If that default parent is unwritable, bootstrap fails rather

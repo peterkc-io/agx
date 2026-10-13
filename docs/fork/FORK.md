@@ -12,7 +12,8 @@ upstream prime-agent ---- upstream sockets / kernel-venv
 agx ------------------- agx sockets / kernel-venv-agx
          |
          +--- updates, telemetry, and trace uploads disabled
-         +--- settings overlay and plugins planned, not implemented
+         +--- global settings overlay: settings-agx.json
+         +--- plugins planned, not implemented
 ```
 
 ## Current foundation
@@ -32,7 +33,7 @@ upstream launcher can override its source defaults.
 | Updates | Upstream update path | Disabled with local install instructions |
 | Usage telemetry | Settings and environment control | Release switch forced off; debug behavior retained for tests |
 | Trace uploads | Saved opt-in and credentials | Disabled, including forced upload options |
-| Settings overlay | Not assessed in this comparison | Planned, not implemented |
+| Settings overlay | Not assessed in this comparison | [Implemented overlay](FEATURES.md#agx-007). Base file stays read-only. |
 | Plugins and plugin workflows | Not assessed in this comparison | Planned, not implemented |
 
 The runtime policy has focused tests for startup reset, marked child behavior,
@@ -55,8 +56,8 @@ The native packer builds the local bundle. No upstream installation is replaced.
 
 ## Compatibility boundaries
 
-- Settings and sessions remain shared in this foundation. An edit can affect the
-  upstream program. Do not assume the planned overlay already exists.
+- Sessions and base settings remain shared. agx global edits go only to
+  [the settings overlay](FEATURES.md#agx-007), not upstream's settings file.
 - `AGX_PROCESS` marks fork descendants. It does not bypass socket refusal.
 - Kernel and bash-tool children must not inherit internal daemon role variables.
 - Telemetry and trace opt-ins remain readable in shared settings, but cannot
@@ -79,6 +80,6 @@ an upstream seam row. Update the ledger with each later upstream modification.
 
 ## Planned work
 
-Settings overlays and plugins are later approved-plan actions. Neither feature
-is delivered by this foundation. They must preserve the runtime and privacy
-boundaries above.
+The [settings overlay](FEATURES.md#agx-007) is implemented.
+Plugins remain a later approved-plan action and are not implemented. They must
+preserve the runtime and privacy boundaries above.
