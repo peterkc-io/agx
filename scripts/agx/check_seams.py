@@ -10,6 +10,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
+FORK_OWNED_FILES = {"prime-agent-runtime/test/test_agx_settings.py"}
 
 
 def git_names(repo, *args):
@@ -44,7 +45,7 @@ def check(repo, base, ledger, revision=None):
     args = ["diff", "--no-renames", "--name-only", "-z", base]
     if revision:
         args.append(revision)
-    changed = git_names(repo, *args, "--") & upstream
+    changed = git_names(repo, *args, "--") & (upstream - FORK_OWNED_FILES)
     rows = ledger_rows(ledger)
     return sorted(changed - rows), sorted(rows - changed), len(changed)
 

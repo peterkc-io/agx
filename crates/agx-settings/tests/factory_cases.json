@@ -1,0 +1,54 @@
+[
+  {
+    "name": "missing_base_overlay_true",
+    "base": null,
+    "overlay": "{\"factory\":{\"enabled\":true}}",
+    "expected": true
+  },
+  {
+    "name": "base_true_overlay_enabled_null",
+    "base": "{\"factory\":{\"enabled\":true}}",
+    "overlay": "{\"factory\":{\"enabled\":null}}",
+    "expected": false
+  },
+  {
+    "name": "base_true_overlay_false",
+    "base": "{\"factory\":{\"enabled\":true}}",
+    "overlay": "{\"factory\":{\"enabled\":false}}",
+    "expected": false
+  },
+  {
+    "name": "malformed_base_overlay_true",
+    "base": "{ invalid",
+    "overlay": "{\"factory\":{\"enabled\":true}}",
+    "expected": false
+  },
+  {
+    "name": "malformed_overlay_keeps_true_base",
+    "base": "{\"factory\":{\"enabled\":true}}",
+    "overlay": "{ invalid",
+    "expected": true
+  },
+  {
+    "name": "absent_overlay_keeps_true_base",
+    "base": "{\"factory\":{\"enabled\":true}}",
+    "overlay": null,
+    "expected": true
+  },
+  {
+    "name": "unreadable_base_overlay_true",
+    "base": {
+      "directory": true
+    },
+    "overlay": "{\"factory\":{\"enabled\":true}}",
+    "expected": false
+  },
+  {
+    "name": "unreadable_overlay_keeps_true_base",
+    "base": "{\"factory\":{\"enabled\":true}}",
+    "overlay": {
+      "directory": true
+    },
+    "expected": true
+  }
+]

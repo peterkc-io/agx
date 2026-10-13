@@ -75,6 +75,7 @@ impl ConsentGeneration {
         Self(
             [
                 agent_dir.join("settings.json"),
+                agent_dir.join(agx_settings::OVERLAY_FILE_NAME),
                 cwd.join(crate::settings::storage::CONFIG_DIR_NAME)
                     .join("settings.json"),
             ]
@@ -128,7 +129,7 @@ impl Drop for ContinuousTraceUpload {
 }
 
 impl ContinuousTraceUpload {
-    /// Reuse this settings load for the host's other settings. Only two bounded
+    /// Reuse this settings load for the host's other settings. Only three bounded
     /// metadata reads are added; parsing is the existing host configuration load.
     #[must_use]
     pub fn load_settings(
@@ -1067,6 +1068,10 @@ async fn recover_with_io(
     }
     (complete && !cancel.is_cancelled(), not_before)
 }
+
+#[cfg(test)]
+#[path = "../../../agx-settings/tests/consent_generation.rs"]
+mod agx_consent_tests;
 
 #[cfg(test)]
 mod tests;

@@ -146,19 +146,27 @@ pub const FACTORY_SETTINGS_FILE_NAME: &str = "settings.json";
 pub const FACTORY_DISABLED_MESSAGE: &str = "the factory is disabled; run /factory on to enable it";
 
 /// The `factory.enabled` opt-in setting (default off), read leniently from
-/// the agent dir's settings.json exactly like the kernel-side
-/// `rlm.factory.factory_enabled()`: a missing file or key, a wrong-typed
-/// value, or a corrupt document all read as the fail-closed disabled
-/// default, so an unreadable setting refuses the factory instead of
+/// global settings.json plus settings-agx.json, like the kernel-side
+/// `rlm.factory.factory_enabled()`: a missing key or a wrong-typed
+/// value, or a corrupt base document all read as the fail-closed disabled
+/// default, so an unreadable base refuses the factory instead of
 /// silently enabling it.
 #[must_use]
 pub fn factory_enabled(agent_dir: &Path) -> bool {
-    let Ok(raw) = std::fs::read_to_string(agent_dir.join(FACTORY_SETTINGS_FILE_NAME)) else {
+    let raw = match std::fs::read_to_string(agent_dir.join(FACTORY_SETTINGS_FILE_NAME)) {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => "{}".into(),
+        Err(_) => return false,
+    };
+    let Ok(mut document) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return false;
     };
-    let Ok(document) = serde_json::from_str::<serde_json::Value>(&raw) else {
-        return false;
-    };
+    if let Some(patch) = std::fs::read_to_string(agent_dir.join(agx_settings::OVERLAY_FILE_NAME))
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+    {
+        document = agx_settings::merge_patch(&document, &patch);
+    }
     document
         .get("factory")
         .and_then(|factory| factory.get("enabled"))

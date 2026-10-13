@@ -69,6 +69,28 @@ class SeamChecks(unittest.TestCase):
             self.repo, self.base, self.ledger,
         ), ([], [], 0))
 
+    def test_exact_kernel_test_path_is_fork_owned(self):
+        path = self.repo / "prime-agent-runtime/test/test_agx_settings.py"
+        path.parent.mkdir(parents=True)
+        path.write_text("baseline bytes\n")
+        self.git("add", str(path.relative_to(self.repo)))
+        base = self.git("write-tree").strip()
+        path.write_text("fork bytes\n")
+        self.assertEqual(check_seams.check(
+            self.repo, base, self.ledger,
+        ), ([], [], 0))
+
+    def test_other_runtime_tests_still_need_a_row(self):
+        path = self.repo / "prime-agent-runtime/test/test_factory.py"
+        path.parent.mkdir(parents=True)
+        path.write_text("baseline bytes\n")
+        self.git("add", str(path.relative_to(self.repo)))
+        base = self.git("write-tree").strip()
+        path.write_text("changed bytes\n")
+        self.assertEqual(check_seams.check(
+            self.repo, base, self.ledger,
+        ), (["prime-agent-runtime/test/test_factory.py"], [], 1))
+
     def test_duplicate_row_is_rejected(self):
         self.write_rows(["one.rs", "one.rs"])
         with self.assertRaisesRegex(ValueError, "Duplicate"):

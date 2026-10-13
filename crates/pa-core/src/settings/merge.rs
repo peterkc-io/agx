@@ -2,6 +2,8 @@
 
 use serde_json::Value;
 
+pub(super) use agx_settings::merge_patch;
+
 use super::types::Settings;
 
 /// Deep merge: overrides win; nested objects merge recursively; arrays and scalars replace.

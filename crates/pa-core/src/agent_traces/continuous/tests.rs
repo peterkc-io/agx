@@ -1063,7 +1063,7 @@ async fn a_settings_change_after_load_still_records_the_write_intent() {
     let c = controller(&fixture, &path, true);
     // A concurrent project edit changes the settings metadata after the
     // host captured its consent snapshot: removal is unambiguous.
-    std::fs::remove_file(fixture.agent_dir.join("settings.json")).unwrap();
+    std::fs::remove_file(fixture.agent_dir.join("settings-agx.json")).unwrap();
     c.persisted(&path);
     assert!(
         agent_trace_outbox_entry_path(&fixture.agent_dir, &path).exists(),

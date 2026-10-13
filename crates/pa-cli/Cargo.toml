@@ -9,6 +9,10 @@ description = "The prime-agent binary."
 name = "installer_update_e2e"
 path = "tests/fork/updates.rs"
 
+[[test]]
+name = "agx_settings"
+path = "../agx-settings/tests/cli.rs"
+
 [dependencies]
 pa-types = { path = "../pa-types" }
 pa-core = { path = "../pa-core" }

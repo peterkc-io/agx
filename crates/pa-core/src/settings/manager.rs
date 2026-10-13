@@ -12,6 +12,9 @@ use super::types::{
     QueueModeSetting, Settings, ThinkingLevelSetting, TransportSetting, UpdateChannel,
 };
 
+#[path = "../../../agx-settings/src/manager.rs"]
+pub(crate) mod agx_overlay;
+
 pub const RECENT_MODELS_LIMIT: usize = 20;
 pub const DEFAULT_IDLE_EVICTION_MINUTES: u64 = 90;
 pub const DEFAULT_SESSION_ARCHIVE_MAX_AGE_DAYS: u64 = 30;
@@ -24,6 +27,7 @@ pub struct SettingsError {
 }
 
 pub struct SettingsManager {
+    agx: Option<agx_overlay::Overlay>,
     storage: Arc<dyn SettingsStorage>,
     global: Settings,
     project: Settings,
@@ -48,6 +52,7 @@ impl SettingsManager {
             load_scope(storage.as_ref(), SettingsScope::Project, &mut errors);
         let merged = deep_merge(&global, &project);
         Self {
+            agx: None,
             storage,
             global,
             project,
@@ -66,9 +71,7 @@ impl SettingsManager {
     ) -> Self {
         let cwd = std::path::PathBuf::from(cwd.as_ref());
         let agent_dir = std::path::PathBuf::from(agent_dir.as_ref());
-        let storage: Arc<dyn SettingsStorage> =
-            Arc::new(super::storage::FileSettingsStorage::new(cwd, agent_dir));
-        Self::from_storage(storage)
+        agx_overlay::create(cwd, agent_dir)
     }
 
     /// A new manager over the same settings store (a fresh read; the
@@ -76,6 +79,9 @@ impl SettingsManager {
     /// telemetry switch.
     #[must_use]
     pub fn reopen(&self) -> Self {
+        if self.agx.is_some() {
+            return agx_overlay::reopen(self);
+        }
         let mut fresh = Self::from_storage(Arc::clone(&self.storage));
         fresh.apply_overrides(&self.runtime_overrides);
         fresh
@@ -134,6 +140,10 @@ impl SettingsManager {
     /// Never returns `Err`; load problems are recorded as load errors on
     /// the manager instead.
     pub fn reload(&mut self) -> Result<()> {
+        if self.agx.is_some() {
+            agx_overlay::reload(self);
+            return Ok(());
+        }
         let mut errors = std::mem::take(&mut self.errors);
         let (global, global_raw, global_load_error) =
             load_scope(self.storage.as_ref(), SettingsScope::Global, &mut errors);
@@ -507,6 +517,10 @@ impl SettingsManager {
         field: &str,
         value: &serde_json::Value,
     ) {
+        if self.agx.is_some() && scope == SettingsScope::Global {
+            agx_overlay::save_field(self);
+            return;
+        }
         let load_error = match scope {
             SettingsScope::Global => self.global_load_error.clone(),
             SettingsScope::Project => self.project_load_error.clone(),
@@ -893,6 +907,9 @@ impl SettingsManager {
     /// Write the global scope back (project scope is host-written, not
     /// user-set), then re-derive the effective settings.
     fn save_global(&mut self) -> Result<()> {
+        if self.agx.is_some() {
+            return agx_overlay::save_global(self);
+        }
         let content = serde_json::to_string_pretty(&self.global)?;
         self.storage
             .with_lock(SettingsScope::Global, &mut |current| {
@@ -1027,7 +1044,7 @@ mod tests {
             .expect("set factory enabled");
         assert!(manager.get_factory_enabled());
         let content =
-            std::fs::read_to_string(agent_dir.join("settings.json")).expect("global file");
+            std::fs::read_to_string(agent_dir.join("settings-agx.json")).expect("global file");
         assert!(
             content.contains(r#""enabled": true"#),
             "the write lands in the global document the kernel gate reads: {content}"

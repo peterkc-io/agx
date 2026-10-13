@@ -218,7 +218,7 @@ mod tests {
 
         set_telemetry_enabled_text(&mut settings, &agent_dir, false).unwrap();
         let written: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(agent_dir.join("settings.json")).unwrap(),
+            &std::fs::read_to_string(agent_dir.join("settings-agx.json")).unwrap(),
         )
         .unwrap();
         assert_eq!(written["telemetry"]["enabled"], false);

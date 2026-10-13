@@ -290,7 +290,7 @@ mod tests {
         assert!(!settings.show_images());
 
         let content =
-            std::fs::read_to_string(agent_dir.join("settings.json")).expect("settings file");
+            std::fs::read_to_string(agent_dir.join("settings-agx.json")).expect("settings file");
         let value: serde_json::Value = serde_json::from_str(&content).expect("parse");
         assert_eq!(value["theme"], "dark");
         assert_eq!(value["idleEvictionMinutes"], "off");
@@ -302,7 +302,7 @@ mod tests {
         settings.set_update_channel("stable").expect("channel");
         assert_eq!(settings.update_channel().as_deref(), Some("stable"));
         let content =
-            std::fs::read_to_string(agent_dir.join("settings.json")).expect("settings file");
+            std::fs::read_to_string(agent_dir.join("settings-agx.json")).expect("settings file");
         let value: serde_json::Value = serde_json::from_str(&content).expect("parse");
         assert_eq!(value["updateChannel"], "stable");
         // ...and the /nightly on path's.
@@ -318,7 +318,7 @@ mod tests {
         settings.set_factory_enabled(true).expect("factory enabled");
         assert!(settings.factory_enabled());
         let content =
-            std::fs::read_to_string(agent_dir.join("settings.json")).expect("settings file");
+            std::fs::read_to_string(agent_dir.join("settings-agx.json")).expect("settings file");
         let value: serde_json::Value = serde_json::from_str(&content).expect("parse");
         assert_eq!(value["factory"]["enabled"], true);
         assert_eq!(value["theme"], "dark", "the write leaves the other keys");
@@ -327,7 +327,7 @@ mod tests {
             .expect("factory disabled");
         assert!(!settings.factory_enabled());
         let content =
-            std::fs::read_to_string(agent_dir.join("settings.json")).expect("settings file");
+            std::fs::read_to_string(agent_dir.join("settings-agx.json")).expect("settings file");
         let value: serde_json::Value = serde_json::from_str(&content).expect("parse");
         assert_eq!(value["factory"]["enabled"], false);
     }

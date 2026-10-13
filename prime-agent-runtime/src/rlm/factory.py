@@ -3482,18 +3482,30 @@ FACTORY_DISABLED_MESSAGE = "the factory is disabled; run /factory on to enable i
 _SETTINGS_FILE_NAME = "settings.json"
 
 
+def _merge_settings_patch(base, patch):
+    if not isinstance(patch, dict):
+        return patch
+    merged = dict(base) if isinstance(base, dict) else {}
+    for key, value in patch.items():
+        if value is None:
+            merged.pop(key, None)
+        else:
+            merged[key] = _merge_settings_patch(merged.get(key), value)
+    return merged
+
+
 def factory_enabled() -> bool:
     """Read the ``factory.enabled`` opt-in setting (default off).
 
     The factory is opt-in: it ships disabled, and the user turns it on with
     ``/factory on`` (the persisted setting is ``factory.enabled`` in the
-    agent dir's ``settings.json`` -- the same nested-camelCase document the
+    agent dir's ``settings-agx.json`` overlay -- the same document the
     daemon and TUI settings surface write, e.g. ``{"factory": {"enabled":
     true}}`` beside ``compaction``/``agentTraces``). The read mirrors the
-    lenient settings loading on the Rust side: a missing file or key, a
-    wrong-typed value, or a corrupt document all read as unset, and unset
+    lenient load of ``settings.json`` plus that overlay: an absent key, a
+    wrong-typed value, or corrupt base document is unset, and unset
     means disabled -- the opt-in default is fail-closed, so an unreadable
-    settings file refuses the factory instead of silently enabling it.
+    base settings file refuses the factory instead of silently enabling it.
     """
     # One home for the agent-dir resolution (harness.py owns it); imported
     # lazily because harness imports this module at its own top.
@@ -3503,8 +3515,17 @@ def factory_enabled() -> bool:
     try:
         with open(path, encoding="utf-8") as handle:
             document = json.load(handle)
+    except FileNotFoundError:
+        document = {}
     except (OSError, ValueError):
         return False
+    try:
+        with open(path.with_name("settings-agx.json"), encoding="utf-8") as handle:
+            overlay = json.load(handle)
+    except (OSError, ValueError):
+        pass
+    else:
+        document = _merge_settings_patch(document, overlay)
     if not isinstance(document, dict):
         return False
     factory = document.get("factory")

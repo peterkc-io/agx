@@ -5,7 +5,12 @@ edition.workspace = true
 license.workspace = true
 description = "Session engine: tools, skills, prompts, kernel, subagents, settings."
 
+[[test]]
+name = "agx_settings"
+path = "../agx-settings/tests/manager.rs"
+
 [dependencies]
+agx-settings.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true

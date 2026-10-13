@@ -36,9 +36,9 @@ a failure in either carrier stops upstream-first.
 
 | Upstream file | Reason | Verification |
 | --- | --- | --- |
-| `Cargo.lock` | Record the local agx-identity crate dependency. | Locked workspace build. |
-| `Cargo.toml` | Add the fork-owned identity workspace crate. | Workspace fmt, clippy, and build. |
-| `crates/pa-cli/Cargo.toml` | Name the binary agx; replace three retired installer scenarios with fork update refusals. | Three no-network update tests; workspace target checks. |
+| `Cargo.lock` | Record the local agx identity and settings crate dependencies. | Locked workspace build; dependency versions unchanged. |
+| `Cargo.toml` | Add fork-owned identity and JSON settings workspace crates. | Workspace fmt, clippy, and build. |
+| `crates/pa-cli/Cargo.toml` | Name the binary agx; register fork update refusals and real settings-command tests. | No-network update tests; agx settings command tests; workspace checks. |
 | `crates/pa-cli/src/client_traces.rs` | Report trace sharing unsupported and off. | Four client-trace tests and public no-request trace test; legacy protocol coverage retained. |
 | `crates/pa-cli/src/client_update.rs` | Refuse agx updates before retained upstream Homebrew and managed-update paths. | Fork update refusal and actual TUI error-exit scenario. |
 | `crates/pa-cli/src/config.rs` | Name the app agx; reject resolved upstream socket paths. | Four config tests, including both namespaces and all sources. |
@@ -92,13 +92,13 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/view_switch_latency_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/windows_runtime_triage_e2e.rs` | Use agx executable; mark test supervisor (FR-010) to preserve lost-exit override; Linux-only prctl backstop, upstream CI is Linux-only. | Linux integration suite; Windows triage path unchanged. |
 | `crates/pa-core/src/agent_traces.rs` | Add the fork-owned public upload guard test module. | Recording test has a reachable HTTP positive control. |
-| `crates/pa-core/src/agent_traces/continuous.rs` | Keep continuous trace upload off in agx builds (consent and request); pa-core unit tests keep upstream behavior. | continuous tests; fork_tests trace refusal; no-upstream-network. |
+| `crates/pa-core/src/agent_traces/continuous.rs` | Refuse production fork continuous uploads; include overlay metadata in consent generation and preserve error results. | Retained upstream trace suite; red/green fork consent-generation tests; installed release trace refusal. |
 | `crates/pa-core/src/agent_traces/tests.rs` | Keep legacy protocol tests on private carried upstream machinery. | Legacy trace unit tests and separate public guard test. |
 | `crates/pa-core/src/agent_traces/upload.rs` | Disable every public single-file upload before requests, including forced options. | Recording fake returns Disabled with zero requests. |
 | `crates/pa-core/src/agent_traces/upload_all.rs` | Disable public upload-all before payload collection or requests; retain private protocol coverage. | Recording fake for upload-all and legacy protocol tests. |
 | `crates/pa-core/src/kernel/bootstrap/venv/layout.rs` | Keep the writable-dir fallback in the fork namespace; the entry point supplies the normal default. | Unchanged venv_dir_honors_override test; native library suite. |
 | `crates/pa-core/src/kernel/manager/startup.rs` | Remove internal role variables at the kernel spawn. | Actual session ipython environment inspection. |
-| `crates/pa-core/src/session_engine/telemetry/status.rs` | Force release switch off before env/settings; endpoint None in every build; retain debug semantics. | Pure release-rule unit test, unchanged debug tests, and opt-in installed release scenario. |
+| `crates/pa-core/src/session_engine/telemetry/status.rs` | Force release off before env/settings; endpoint None in every build; read the debug persistence assertion from the overlay. | Release-rule and retained debug telemetry tests; overlay tests. |
 | `crates/pa-core/src/session_engine/telemetry/tests.rs` | Serialize the unchanged mirror test with the approved ENV_MUTEX prerequisite. | Full native library tests; original mirror and switch assertions retained. |
 | `crates/pa-core/src/tools/bash_local.rs` | Remove internal role variables immediately before bash spawn. | Actual BashOperations spawn and session kernel bash-helper environment inspection. |
 | `crates/pa-core/tests/abort_kernel_cell.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
@@ -138,3 +138,14 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-types/src/lib.rs` | Expose one fork identity helper module to current callers. | Workspace target compilation and helper unit tests. |
 | `crates/pa-types/src/platform/transport.rs` | Refuse upstream endpoints at six connect/bind boundaries. | Socket guard tests; native transport fixtures. |
 | `scripts/package_release.py` | Add a binary-name option while preserving upstream defaults. | Local packer and atomic installer tests. |
+| `crates/pa-core/Cargo.toml` | Use the fork JSON settings crate and register its host-settings tests. | Locked settings tests; workspace clippy/build. |
+| `crates/pa-core/src/settings/manager.rs` | Delegate file-backed base/overlay loading, changed-path writes, reload/reopen, and global field persistence; adapt factory write assertion. | AC-008 settings tests; retained memory/project semantics. |
+| `crates/pa-core/src/settings/storage.rs` | Add the overlay path constructor; reuse the existing lock/reread and fsync-enabled atomic write unchanged. | AC-008 concurrency; overlay fsync unit test; storage tests. |
+| `crates/pa-core/src/settings/merge.rs` | Expose fork RFC 7396 patch operation; retain upstream project deep_merge unchanged. | AC-008 JSON-value and project-null tests. |
+| `crates/pa-core/src/settings/mod.rs` | Export the CLI global overlay-storage boundary. | AC-008 real MCP command tests. |
+| `crates/pa-cli/src/mcp_command.rs` | Read effective global JSON and adapt the existing mutation callback to changed overlay paths, including inherited removal. | AC-008 add/get/list/replace/remove and malformed refusal. |
+| `prime-agent-runtime/src/rlm/factory.py` | Apply the stdlib RFC 7396 overlay before factory.enabled; support a missing base and retain unreadable-base refusal. | AC-028 kernel overlay tests; upstream factory/harness tests. |
+| `crates/pa-core/src/packages/manager.rs` | Read global-write assertions from the overlay; assert project installs create neither global document. | Package unit tests; unchanged project path. |
+| `crates/pa-cli/src/client_settings.rs` | Read persisted client-setting assertions from the overlay without removing any assertions. | Client-settings unit tests. |
+| `crates/pa-core/src/refinement/mod.rs` | factory gate reads the agx overlay like the kernel (FR-043) | refinement factory_enabled overlay tests; test_agx_settings.py |
+| `crates/pa-core/src/agent_traces/continuous/tests.rs` | Remove the overlay after the consent snapshot instead of the now-read-only base; retain all existing intent/delivery assertions. | settings race trace test; full agent_traces unit check. |

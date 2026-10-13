@@ -2,7 +2,6 @@
 //! store it reads and writes.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -74,13 +73,12 @@ pub struct EnvRef {
     pub env: String,
 }
 
-fn settings_path() -> PathBuf {
-    get_agent_dir().join("settings.json")
-}
-
 fn read_settings() -> serde_json::Value {
-    std::fs::read_to_string(settings_path())
+    let storage = pa_core::settings::GlobalSettingsStorage::new(".", get_agent_dir());
+    storage
+        .read(pa_core::settings::SettingsScope::Global)
         .ok()
+        .flatten()
         .and_then(|content| serde_json::from_str(&content).ok())
         .unwrap_or_else(|| serde_json::json!({}))
 }
@@ -93,7 +91,7 @@ fn read_settings() -> serde_json::Value {
 fn mutate_global_settings(
     mut mutate: impl FnMut(&mut serde_json::Value) -> Result<bool>,
 ) -> Result<()> {
-    let storage = pa_core::settings::FileSettingsStorage::new(
+    let storage = pa_core::settings::GlobalSettingsStorage::new(
         std::env::current_dir().context("resolving the current directory")?,
         get_agent_dir(),
     );
@@ -115,7 +113,7 @@ fn mutate_global_settings(
                 }
             }
         })
-        .context("updating settings.json")?;
+        .context("updating settings-agx.json")?;
     if let Some(error) = failure {
         return Err(error);
     }

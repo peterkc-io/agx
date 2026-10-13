@@ -70,6 +70,14 @@ impl FileSettingsStorage {
         }
     }
 
+    pub(crate) fn overlay(cwd: impl Into<PathBuf>, agent_dir: impl Into<PathBuf>) -> Self {
+        let mut storage = Self::new(cwd, agent_dir);
+        storage
+            .global_path
+            .set_file_name(agx_settings::OVERLAY_FILE_NAME);
+        storage
+    }
+
     fn path(&self, scope: SettingsScope) -> &Path {
         match scope {
             SettingsScope::Global => &self.global_path,

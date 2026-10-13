@@ -642,7 +642,7 @@ mod tests {
 
     fn read_settings(dir: &tempfile::TempDir) -> serde_json::Value {
         serde_json::from_str(
-            &std::fs::read_to_string(dir.path().join("agent").join("settings.json")).unwrap(),
+            &std::fs::read_to_string(dir.path().join("agent").join("settings-agx.json")).unwrap(),
         )
         .unwrap()
     }
@@ -755,6 +755,7 @@ mod tests {
         );
         // Global settings are never created by a project-scoped install.
         assert!(!dir.path().join("agent").join("settings.json").exists());
+        assert!(!dir.path().join("agent").join("settings-agx.json").exists());
 
         let configured = manager.list_configured_packages();
         assert_eq!(configured.len(), 1);
