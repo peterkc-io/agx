@@ -2,7 +2,7 @@
 
 agx adds separate runtime state, read-only upstream settings, and forced-off
 telemetry and trace uploads to Prime Agent. This list covers the code at
-[c016196e0][snapshot], not inherited upstream features or planned plugins.
+[6c6788ef7][snapshot], not inherited upstream features or planned plugins.
 
 Upstream adoption was checked on 2026-10-13 against [d592d5e77][upstream-snapshot].
 “Not proposed” means no covering proposal was found in the upstream PRs and
@@ -18,8 +18,8 @@ own history.
 | ID | Feature or fix | Why it matters | Fork commits | Changed upstream files or behavior | Added in agx | Upstream status |
 | --- | --- | --- | --- | --- | --- | --- |
 | AGX-001 | Separate `agx` command and version name. | Keep `prime-agent` installed and choose which program to run. | [1ec56e169][identity], [9b96e7aa5][rename] | CLI binary name, help and version output. [CLI manifest][cli-manifest] | [1ec56e169][identity] | Not proposed. |
-| AGX-002 | Separate daemon sockets, Windows pipes and kernel environment. Recognized upstream socket paths are refused. | agx cannot connect to or replace a daemon in an upstream socket directory. | [1ec56e169][identity], [b9bb00512][isolation-fix], [9b96e7aa5][rename] | Daemon and transport endpoints, default kernel environment and socket checks. [Policy source][identity-source] | [1ec56e169][identity] | Not proposed. |
-| AGX-003 | Fresh processes clear inherited upstream runtime and process-role variables. Bash and kernel children drop internal roles. | Starting one product from the other does not inherit the wrong daemon or worker role. | [1ec56e169][identity], [9b96e7aa5][rename] | Startup, bash-tool and kernel process environments. [Policy source][identity-source] | [1ec56e169][identity] | Not proposed. |
+| AGX-002 | Separate daemon sockets, Windows pipes and kernel environment. Recognized upstream socket paths are refused. | agx cannot connect to or replace a daemon in an upstream socket directory. | [1ec56e169][identity], [b9bb00512][isolation-fix], [9b96e7aa5][rename], [45d163445][venv-fix] | Daemon and transport endpoints, default kernel environment and socket checks. [Policy source][identity-source] | [1ec56e169][identity] | Not proposed. |
+| AGX-003 | Fresh processes clear inherited upstream runtime and process-role variables. Bash and kernel children drop internal roles; the kernel keeps only upstream's orphan-process journal path. | Starting one product from the other does not inherit the wrong daemon or worker role, and upstream's clean-up of leftover bash processes still works. | [1ec56e169][identity], [9b96e7aa5][rename], [357ee25b7][journal-fix] | Startup, bash-tool and kernel process environments. [Policy source][identity-source] | [1ec56e169][identity] | Not proposed. |
 | AGX-004 | `agx update`, its aliases and TUI `/update` refuse automatic installation and show local update instructions. | An update request cannot install upstream over agx. | [1ec56e169][identity], [9b96e7aa5][rename] | CLI and TUI update dispatch, before installer requests. [Update command][update-source] | [1ec56e169][identity] | Not proposed. |
 | AGX-005 | Release usage telemetry stays off despite saved or environment opt-ins. No build has a telemetry network endpoint. | Fork usage is not sent to Prime Intellect. | [1ec56e169][identity], [b9bb00512][isolation-fix] | Telemetry switch and client endpoint. [Telemetry source][telemetry-source] | [1ec56e169][identity] | Not proposed. |
 | AGX-006 | Automatic and manual trace uploads stay off, including forced single-file and upload-all requests. | Shared trace settings cannot upload agx sessions to Prime Intellect. | [1ec56e169][identity], [217f1fbbe][upstream-merge] | Public trace upload and continuous-upload paths, CLI and TUI sharing controls. [Upload source][trace-source] | [1ec56e169][identity] | Not proposed. |
@@ -50,7 +50,7 @@ new session behavior. Linux-only tests stay available on Linux.
 
 | ID | Feature or fix | Why it matters | Fork commits | Changed upstream files or behavior | Added in agx | Upstream status |
 | --- | --- | --- | --- | --- | --- | --- |
-| AGX-009 | An upstream change inventory and checker reject unlisted changes and rows for unchanged files. | See what must be reviewed when taking in upstream changes. | [1ec56e169][identity], [217f1fbbe][upstream-merge], [e29276e27][overlay], [63b60e348][overlay-tests] | Fork-owned [change inventory][seams] and [checker][seam-checker]. | [1ec56e169][identity] | Not proposed. |
+| AGX-009 | An upstream change inventory and checker reject unlisted changes and rows for unchanged files. | See what must be reviewed when taking in upstream changes. | [1ec56e169][identity], [217f1fbbe][upstream-merge], [e29276e27][overlay], [63b60e348][overlay-tests], [f8ec61bef][seam-fix] | Fork-owned [change inventory][seams] and [checker][seam-checker]. | [1ec56e169][identity] | Not proposed. |
 | AGX-010 | Fork CI checks format, Clippy, workspace tests and release builds on Linux. It bootstraps the kernel and saves test logs. | Check the complete fork on Linux even when local development uses macOS. | `985d650fb`, `bc22c2cd8`, [1f4613732][sync-automation] | Fork-owned [workflow](../../.github/workflows/agx-ci.yml) and [failed-test helper](../../scripts/agx/rerun_failed.py). | `985d650fb` | Not proposed. |
 | AGX-011 | Terminal test helpers use macOS-compatible ioctl types and handle the absent Linux-only termios field. | The existing terminal regression tests compile on macOS. | [2106901fd][terminal-fix], [c016196e0][bootstrap-merge] | `kitty_*`, `slow_drain_exit_guard_e2e.rs`, `exit_backfill_pty_e2e.rs` and [terminal-state test helper][terminal-source]. | [2106901fd][terminal-fix] | Not proposed. |
 | AGX-012 | Linux-only `prctl`, terminal and `/proc` test code is guarded by the target OS. | macOS builds no longer compile unavailable Linux APIs. Linux still runs the tests. | [1de78b14e][linux-fix], [1ec56e169][identity], [217f1fbbe][upstream-merge] | `interactive_daemon_e2e.rs`, `termios_process_exit_e2e.rs` and `windows_runtime_triage_e2e.rs`. [Linux-only test target][linux-source] | [1de78b14e][linux-fix] | Not proposed. |
@@ -71,13 +71,16 @@ Partial adoption keeps the row and names what remains. Full adoption names the
 upstream PR and commit or version, then prompts removal of the fork's copy.
 This document links existing upstream work; it does not create an upstream proposal.
 
-[snapshot]: https://github.com/peterkc-io/agx/commit/c016196e0970025c17fd9d378e210ad5c4490286
+[snapshot]: https://github.com/peterkc-io/agx/commit/6c6788ef72de97a531f19586f16375d564a62dba
 [upstream-snapshot]: https://github.com/PrimeIntellect-ai/prime-agent/commit/d592d5e7746408fe9097541af96d3239e263f7a1
 [identity]: https://github.com/peterkc-io/agx/commit/1ec56e169a8668d249620f8f926e6cfdfc744a90
 [rename]: https://github.com/peterkc-io/agx/commit/9b96e7aa58f5f17b001892d90934d87041972665
 [isolation-fix]: https://github.com/peterkc-io/agx/commit/b9bb00512d7d6c1deafa71aa10ac2b31d643252b
 [upstream-merge]: https://github.com/peterkc-io/agx/commit/217f1fbbecf2bf933c2684b6fd21f2c7baf9229e
 [bootstrap-merge]: https://github.com/peterkc-io/agx/commit/c016196e0970025c17fd9d378e210ad5c4490286
+[journal-fix]: https://github.com/peterkc-io/agx/commit/357ee25b71d42fbdcf5a656dd0a3a5bc87b0e224
+[venv-fix]: https://github.com/peterkc-io/agx/commit/45d16344585023896082165ac8438367731c5703
+[seam-fix]: https://github.com/peterkc-io/agx/commit/f8ec61befaf46bc03e84e9cadc625f8c23f9a4ba
 [sync-automation]: https://github.com/peterkc-io/agx/commit/1f4613732858b1174693a9466aadd06f8bc93fdb
 [overlay]: https://github.com/peterkc-io/agx/commit/e29276e274f17c04e28e668feaac1e45082a705d
 [overlay-tests]: https://github.com/peterkc-io/agx/commit/63b60e348bc111fc93ff49e2ed135905e6cec967
