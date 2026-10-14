@@ -1,9 +1,10 @@
 //! `SettingsManager`: loads global + project settings, merges them, tracks
 //! modified fields, and writes back only what this session changed.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 
 use super::load::from_value_lenient;
 use super::merge::{deep_merge, migrate};
@@ -30,6 +31,7 @@ pub struct SettingsManager {
     agx: Option<agx_overlay::Overlay>,
     storage: Arc<dyn SettingsStorage>,
     global: Settings,
+    pending_global_fields: BTreeSet<&'static str>,
     project: Settings,
     merged: Settings,
     runtime_overrides: Settings,
@@ -55,6 +57,7 @@ impl SettingsManager {
             agx: None,
             storage,
             global,
+            pending_global_fields: BTreeSet::new(),
             project,
             merged,
             runtime_overrides: Settings::default(),
@@ -150,6 +153,7 @@ impl SettingsManager {
         let (project, _, project_load_error) =
             load_scope(self.storage.as_ref(), SettingsScope::Project, &mut errors);
         self.global = global;
+        self.pending_global_fields.clear();
         self.project = project;
         self.global_raw = global_raw;
         self.global_load_error = global_load_error;
@@ -173,8 +177,8 @@ impl SettingsManager {
     /// # Errors
     ///
     /// Returns an error when the global settings file cannot be written.
-    pub(crate) fn save_global_scope(&mut self) -> Result<()> {
-        self.save_global()
+    pub(crate) fn save_global_scope(&mut self, fields: &[&'static str]) -> Result<()> {
+        self.save_global(fields)
     }
 
     // -- persisted setters --------------------------------------------------
@@ -184,7 +188,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_default_provider(&mut self, provider: String) -> Result<()> {
         self.global.default_provider = Some(provider);
-        self.save_global()
+        self.save_global(&["defaultProvider"])
     }
 
     /// # Errors
@@ -192,7 +196,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_default_model(&mut self, model: String) -> Result<()> {
         self.global.default_model = Some(model);
-        self.save_global()
+        self.save_global(&["defaultModel"])
     }
 
     /// # Errors
@@ -202,7 +206,7 @@ impl SettingsManager {
         self.global.default_provider = Some(provider.to_string());
         self.global.default_model = Some(model.to_string());
         self.record_model_use(provider, model);
-        self.save_global()
+        self.save_global(&["defaultProvider", "defaultModel", "recentModels"])
     }
 
     /// `markdown.codeBlockIndent`: the string the chat markdown renderer
@@ -282,6 +286,7 @@ impl SettingsManager {
         }
         recent.truncate(RECENT_MODELS_LIMIT);
         self.global.recent_models = Some(recent);
+        self.pending_global_fields.insert("recentModels");
     }
 
     /// # Errors
@@ -289,7 +294,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_steering_mode(&mut self, mode: QueueModeSetting) -> Result<()> {
         self.global.steering_mode = Some(mode);
-        self.save_global()
+        self.save_global(&["steeringMode"])
     }
 
     /// # Errors
@@ -297,7 +302,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_follow_up_mode(&mut self, mode: QueueModeSetting) -> Result<()> {
         self.global.follow_up_mode = Some(mode);
-        self.save_global()
+        self.save_global(&["followUpMode"])
     }
 
     /// # Errors
@@ -305,7 +310,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_theme(&mut self, theme: String) -> Result<()> {
         self.global.theme = Some(theme);
-        self.save_global()
+        self.save_global(&["theme"])
     }
 
     /// # Errors
@@ -313,7 +318,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_update_channel(&mut self, channel: UpdateChannel) -> Result<()> {
         self.global.update_channel = Some(channel);
-        self.save_global()
+        self.save_global(&["updateChannel"])
     }
 
     /// # Errors
@@ -321,7 +326,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_default_thinking_level(&mut self, level: ThinkingLevelSetting) -> Result<()> {
         self.global.default_thinking_level = Some(level);
-        self.save_global()
+        self.save_global(&["defaultThinkingLevel"])
     }
 
     /// The auto-retry toggle (`retry.enabled`).
@@ -334,7 +339,7 @@ impl SettingsManager {
             .retry
             .get_or_insert_with(Default::default)
             .enabled = Some(enabled);
-        self.save_global()
+        self.save_global(&["retry.enabled"])
     }
 
     /// The auto-compaction toggle (`compaction.enabled`): a daemon restart re-seeds
@@ -348,7 +353,7 @@ impl SettingsManager {
             .compaction
             .get_or_insert_with(Default::default)
             .enabled = Some(enabled);
-        self.save_global()
+        self.save_global(&["compaction.enabled"])
     }
 
     /// # Errors
@@ -356,7 +361,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_transport(&mut self, transport: TransportSetting) -> Result<()> {
         self.global.transport = Some(transport);
-        self.save_global()
+        self.save_global(&["transport"])
     }
 
     /// # Errors
@@ -364,7 +369,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_rlm_max_depth(&mut self, depth: u64) -> Result<()> {
         self.global.rlm_max_depth = Some(depth);
-        self.save_global()
+        self.save_global(&["rlmMaxDepth"])
     }
 
     /// # Errors
@@ -373,7 +378,7 @@ impl SettingsManager {
     pub fn set_telemetry_enabled(&mut self, enabled: bool) -> Result<()> {
         let telemetry = self.global.telemetry.get_or_insert_with(Default::default);
         telemetry.enabled = Some(enabled);
-        self.save_global()
+        self.save_global(&["telemetry.enabled"])
     }
 
     /// # Errors
@@ -382,7 +387,7 @@ impl SettingsManager {
     pub fn set_telemetry_notice_shown(&mut self, shown: bool) -> Result<()> {
         let telemetry = self.global.telemetry.get_or_insert_with(Default::default);
         telemetry.notice_shown = Some(shown);
-        self.save_global()
+        self.save_global(&["telemetry.noticeShown"])
     }
 
     /// # Errors
@@ -390,7 +395,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_onboarding_shown(&mut self, shown: bool) -> Result<()> {
         self.global.onboarding_shown = Some(shown);
-        self.save_global()
+        self.save_global(&["onboardingShown"])
     }
 
     /// # Errors
@@ -398,7 +403,7 @@ impl SettingsManager {
     /// Returns an error when the global settings file cannot be written.
     pub fn set_onboarding_completed(&mut self, completed: bool) -> Result<()> {
         self.global.onboarding_completed = Some(completed);
-        self.save_global()
+        self.save_global(&["onboardingCompleted"])
     }
 
     /// The shown flag with the legacy completed flag as fallback.
@@ -450,7 +455,7 @@ impl SettingsManager {
             .agent_traces
             .get_or_insert_with(Default::default);
         traces.enabled = Some(enabled);
-        self.save_global()
+        self.save_global(&["agentTraces.enabled"])
     }
 
     pub fn set_packages(&mut self, packages: Vec<serde_json::Value>) {
@@ -538,20 +543,23 @@ impl SettingsManager {
             });
             return;
         }
-        let result = self.storage.with_lock(scope, &mut |current| {
-            let mut map: serde_json::Map<String, serde_json::Value> = current
-                .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
-                .and_then(|value| match value {
-                    serde_json::Value::Object(mut map) => {
-                        super::merge::migrate(&mut map);
-                        Some(map)
+        let mut failure = None;
+        let result =
+            self.storage.with_lock(
+                scope,
+                &mut |current| match settings_document(current.as_deref()).and_then(|mut map| {
+                    map.insert(field.to_string(), value.clone());
+                    serde_json::to_string_pretty(&serde_json::Value::Object(map))
+                        .map_err(Into::into)
+                }) {
+                    Ok(content) => Some(content),
+                    Err(error) => {
+                        failure = Some(error);
+                        None
                     }
-                    _ => None,
-                })
-                .unwrap_or_default();
-            map.insert(field.to_string(), value.clone());
-            serde_json::to_string_pretty(&serde_json::Value::Object(map)).ok()
-        });
+                },
+            );
+        let result = result.and_then(|()| failure.map_or(Ok(()), Err));
         if let Err(error) = result {
             self.errors.push(SettingsError {
                 scope,
@@ -629,7 +637,7 @@ impl SettingsManager {
             ServiceTier::Priority => "priority",
         };
         self.global.default_service_tier = Some(name.to_string());
-        self.save_global()
+        self.save_global(&["defaultServiceTier"])
     }
 
     /// Service tier a fresh session records as its preference.
@@ -906,19 +914,85 @@ impl SettingsManager {
 
     /// Write the global scope back (project scope is host-written, not
     /// user-set), then re-derive the effective settings.
-    fn save_global(&mut self) -> Result<()> {
+    fn save_global(&mut self, fields: &[&'static str]) -> Result<()> {
         if self.agx.is_some() {
             return agx_overlay::save_global(self);
         }
-        let content = serde_json::to_string_pretty(&self.global)?;
+        self.merged = deep_merge(&self.global, &self.project);
+        self.pending_global_fields.extend(fields.iter().copied());
+        if let Some(message) = &self.global_load_error {
+            self.errors.push(SettingsError {
+                scope: SettingsScope::Global,
+                message: format!(
+                    "Global settings not saved: settings file failed to parse: {message}"
+                ),
+            });
+            return Ok(());
+        }
+        let snapshot = serde_json::to_value(&self.global)?;
+        let mut failure = None;
+        let mut saved = None;
         self.storage
             .with_lock(SettingsScope::Global, &mut |current| {
-                let _ = current;
-                Some(content.clone())
+                let result = (|| -> Result<String> {
+                    let mut document = settings_document(current.as_deref())?;
+                    for field in &self.pending_global_fields {
+                        let (map, key, value) = if let Some((parent, child)) = field.split_once('.')
+                        {
+                            let nested = document
+                                .entry(parent.to_string())
+                                .or_insert_with(|| serde_json::json!({}));
+                            if !nested.is_object() {
+                                *nested = serde_json::json!({});
+                            }
+                            (
+                                nested.as_object_mut().unwrap(),
+                                child,
+                                &snapshot[parent][child],
+                            )
+                        } else {
+                            (&mut document, *field, &snapshot[*field])
+                        };
+                        if value.is_null() {
+                            map.remove(key);
+                        } else {
+                            map.insert(key.to_string(), value.clone());
+                        }
+                    }
+                    let value = serde_json::Value::Object(document);
+                    let content = serde_json::to_string_pretty(&value)?;
+                    saved = Some(value);
+                    Ok(content)
+                })();
+                match result {
+                    Ok(content) => Some(content),
+                    Err(error) => {
+                        failure = Some(error);
+                        None
+                    }
+                }
             })?;
-        self.merged = deep_merge(&self.global, &self.project);
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        self.global_raw = saved;
+        self.pending_global_fields.clear();
         Ok(())
     }
+}
+
+/// Parse inside the storage lock; malformed or non-object documents must never
+/// be replaced with defaults, including when another writer changed them after load.
+fn settings_document(current: Option<&str>) -> Result<serde_json::Map<String, serde_json::Value>> {
+    let value: serde_json::Value = serde_json::from_str(current.unwrap_or("{}"))
+        .context("parsing settings.json; settings not saved")?;
+    let serde_json::Value::Object(mut map) = value else {
+        return Err(anyhow!(
+            "settings.json must contain a JSON object; settings not saved"
+        ));
+    };
+    migrate(&mut map);
+    Ok(map)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

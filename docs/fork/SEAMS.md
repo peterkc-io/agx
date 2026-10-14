@@ -79,6 +79,8 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/kitty_release_handoff_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/kitty_verdict_time_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
 | `crates/pa-cli/tests/lock_compat_e2e.rs` | Use agx; test overlay locks (FR-019), keeping TS base-file cases. | CLI lock integration tests and Linux suites. |
+| `crates/pa-cli/tests/settings_mcp_save.rs` | Use agx; read MCP saves from `settings-agx.json` and keep `settings.json` byte-identical; an unparseable base no longer blocks the overlay write (user decision 2026-10-14). | settings_mcp_save tests. |
+| `crates/pa-daemon/tests/kernel_harness_env_e2e.rs` | Discover the fork default kernel venv; mark the test supervisor as agx so its lost-exit override survives startup isolation. | kernel_harness_env_e2e explicit run; Linux suites. |
 | `crates/pa-cli/tests/mcp_view_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/package_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/package_resources_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
@@ -123,7 +125,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/tests/turn_boundary_kernel.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/src/agent_engine/tests/abort.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/src/branch_navigation.rs` | Trace fork tests assert agx's no-marker behavior (FR-016). | pa-daemon trace_fork_tests; pa-core continuous slot tests. |
-| `crates/pa-daemon/src/platform/paths.rs` | Separate Unix directory and Windows pipe namespaces; retain the upstream real-UID helper. | Fork-namespace real-UID assertion and socket unit tests. |
+| `crates/pa-daemon/src/platform/paths.rs` | Separate Unix directory (`socket_dir_for`, including the short-path fallback) and Windows pipe namespaces; retain the upstream real-UID helper. | Fork-namespace real-UID assertion and socket unit tests. |
 | `crates/pa-daemon/src/socket.rs` | Refuse upstream sockets before bind, unlink, or stale cleanup. | Socket guard units and live coexistence scenario. |
 | `crates/pa-daemon/tests/abort_kernel_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-daemon/tests/agent_family_e2e.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
@@ -149,7 +151,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-types/src/platform/transport.rs` | Refuse upstream endpoints at six connect/bind boundaries. | Socket guard tests; native transport fixtures. |
 | `scripts/package_release.py` | Add a binary-name option while preserving upstream defaults. | Local packer and atomic installer tests. |
 | `crates/pa-core/Cargo.toml` | Use the fork JSON settings crate and register its host-settings tests. | Locked settings tests; workspace clippy/build. |
-| `crates/pa-core/src/settings/manager.rs` | Delegate file-backed base/overlay loading, changed-path writes, reload/reopen, and global field persistence; adapt factory write assertion. | AC-008 settings tests; retained memory/project semantics. |
+| `crates/pa-core/src/settings/manager.rs` | Delegate file-backed base/overlay loading, changed-path writes (`save_global` ahead of upstream's field-level write), reload/reopen, and global field persistence; adapt factory write assertion. | AC-008 settings tests; retained memory/project semantics. |
 | `crates/pa-core/src/settings/storage.rs` | Add the overlay path constructor; reuse the existing lock/reread and fsync-enabled atomic write unchanged. | AC-008 concurrency; overlay fsync unit test; storage tests. |
 | `crates/pa-core/src/settings/merge.rs` | Expose fork RFC 7396 patch operation; retain upstream project deep_merge unchanged. | AC-008 JSON-value and project-null tests. |
 | `crates/pa-core/src/settings/mod.rs` | Export the CLI global overlay-storage boundary. | AC-008 real MCP command tests. |
