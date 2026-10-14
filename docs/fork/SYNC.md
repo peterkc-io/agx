@@ -183,8 +183,10 @@ These tests fail on macOS hosts and pass on Linux; Linux CI decides them:
 
 **Fork CI (Linux).** Compare the sync PR's run with a baseline run on the same
 upstream head without fork changes. To make one, commit only
-`.github/workflows/agx-ci.yml` and `scripts/agx/rerun_failed.py` from `main` on
-top of `origin/upstream-main` and push it as a `wip/agx-upstream-<sha>` branch.
+`.github/workflows/agx-ci.yml` and `scripts/agx/rerun_failed.py` from commit
+`bc22c2cd8` on top of `origin/upstream-main`, and push it as a
+`wip/agx-upstream-<sha>` branch. Do not take them from `main`: its workflow also
+checks the seam ledger, which fails on a tree without the fork's files.
 The ignored tests must match; every other test must pass, except a known flake.
 Delete the `wip/**` branch after the comparison; its run log stays on GitHub.
 
