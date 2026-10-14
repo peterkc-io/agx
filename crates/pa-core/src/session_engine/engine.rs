@@ -32,6 +32,7 @@ pub struct SessionEngineConfig {
     pub stream_fn: Option<StreamFn>,
     pub tools: Vec<Arc<dyn pa_agent::types::AgentTool>>,
     pub custom_system_prompt: Option<String>,
+    /// Explicit append-system-prompt sources from the host; overrides file discovery.
     pub prompt_guidelines: Vec<String>,
     pub generic_mcp_servers: Vec<String>,
     pub allow_recursion: Option<bool>,
@@ -71,6 +72,9 @@ pub struct SessionEngineConfig {
     /// `true` while a steering-lane action is queued or mid-selection: the
     /// running turn stops at the next boundary and the queued steer delivers.
     pub queued_steering_probe: Option<std::sync::Arc<dyn Fn() -> bool + Send + Sync>>,
+    /// Embedding-owned turn boundary, consulted after queued steering.
+    /// Returning true yields the run; the embedding owns any continuation.
+    pub should_stop_after_turn: Option<pa_agent::agent_loop::ShouldStopAfterTurnFn>,
     /// `None` keeps the TS default ("one-at-a-time").
     pub steering_mode: Option<pa_agent::agent::QueueMode>,
     pub follow_up_mode: Option<pa_agent::agent::QueueMode>,
@@ -205,6 +209,13 @@ pub async fn create_session(mut config: SessionEngineConfig) -> anyhow::Result<S
     };
     let (settings, trace_consent) =
         crate::agent_traces::ContinuousTraceUpload::load_settings(&cwd, &config.agent_dir);
+    // Resolve the kernel shell once, before any side effects: an invalid
+    // `shellPath` must fail session creation with a clear config error
+    // naming the setting, not every kernel `bash()` call later.
+    let kernel_shell_path = crate::platform::shell::resolve_kernel_bash_shell(
+        settings.settings().shell_path.as_deref(),
+    )?
+    .map(std::path::PathBuf::from);
     let traces = session_manager
         .is_persisted()
         .then(|| {
@@ -270,7 +281,7 @@ pub async fn create_session(mut config: SessionEngineConfig) -> anyhow::Result<S
         no_prompt_templates: false,
         no_context_files: false,
         system_prompt: config.custom_system_prompt.clone(),
-        append_system_prompt: Vec::new(),
+        append_system_prompt: config.prompt_guidelines.clone(),
         ..Default::default()
     })?;
 
@@ -425,6 +436,7 @@ pub async fn create_session(mut config: SessionEngineConfig) -> anyhow::Result<S
         python_skills,
         cwd.clone(),
         &config.agent_dir,
+        kernel_shell_path,
         session_artifact_dir,
         on_restore,
         config.on_background_work_settled.clone(),
@@ -479,8 +491,6 @@ pub async fn create_session(mut config: SessionEngineConfig) -> anyhow::Result<S
         });
     }
 
-    let prompt_guidelines = config.prompt_guidelines.clone();
-
     let prompt_model_selector = format!("{}/{}", model_info.provider, model_info.id);
     let prompt_vision_capable = Some(model_info.input.contains(&pa_types::ai::ModelInput::Image));
     let model_prompts = crate::prompts::model_prompts::load_model_prompts(
@@ -521,7 +531,7 @@ pub async fn create_session(mut config: SessionEngineConfig) -> anyhow::Result<S
             daemonless: config.daemonless,
             can_spawn: config.rlm_subagent_host.is_some(),
             generic_mcp_servers,
-            prompt_guidelines: Some(prompt_guidelines),
+            append_system_prompt: Some(resources.append_system_prompt.join("\n\n")),
             ..Default::default()
         },
     );
@@ -636,14 +646,23 @@ pub async fn create_session(mut config: SessionEngineConfig) -> anyhow::Result<S
             std::sync::Arc::clone(&request_timing_wiring),
             super::request_timing::pass_through_transform(),
         )),
-        should_stop_after_turn: config.queued_steering_probe.take().map(|probe| {
-            let probe: pa_agent::agent_loop::ShouldStopAfterTurnFn =
-                std::sync::Arc::new(move |_context| {
-                    let probe = std::sync::Arc::clone(&probe);
-                    Box::pin(async move { Ok(probe()) })
-                });
-            probe
-        }),
+        should_stop_after_turn: {
+            let steering = config.queued_steering_probe.take();
+            let boundary = config.should_stop_after_turn.take();
+            Some(std::sync::Arc::new(move |context| {
+                let steering = steering.clone();
+                let boundary = boundary.clone();
+                Box::pin(async move {
+                    if steering.as_ref().is_some_and(|probe| probe()) {
+                        return Ok(true);
+                    }
+                    match boundary {
+                        Some(hook) => hook(context).await,
+                        None => Ok(false),
+                    }
+                })
+            }))
+        },
         should_stop_before_turn: config.queued_steering_probe.clone(),
         steering_mode: config.steering_mode,
         follow_up_mode: config.follow_up_mode,
@@ -959,3 +978,6 @@ impl SessionEngine {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod append_system_tests;

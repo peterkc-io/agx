@@ -364,11 +364,12 @@ impl SessionFile {
         let mut keeping = false;
         let mut retained_count = 0usize;
         for entry in &branch[..compaction_position] {
-            if !entry_bears_message(entry) {
-                continue;
-            }
+            // The durable cut can name bookkeeping, not just a message row.
             if !keeping && entry.id == first_kept_entry_id {
                 keeping = true;
+            }
+            if !entry_bears_message(entry) {
+                continue;
             }
             if keeping {
                 retained_count += 1;
@@ -382,11 +383,12 @@ impl SessionFile {
         index += 1;
         let mut keeping = false;
         for entry in &branch[..compaction_position] {
-            if !entry_bears_message(entry) {
-                continue;
-            }
+            // The durable cut can name bookkeeping, not just a message row.
             if !keeping && entry.id == first_kept_entry_id {
                 keeping = true;
+            }
+            if !entry_bears_message(entry) {
+                continue;
             }
             if keeping {
                 if let Some(message) = entry_message(entry) {

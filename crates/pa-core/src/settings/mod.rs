@@ -8,6 +8,9 @@ pub(crate) mod merge;
 pub(crate) mod storage;
 pub(crate) mod types;
 
+#[cfg(test)]
+mod persistence_tests;
+
 pub use manager::agx_overlay::GlobalSettingsStorage;
 pub use manager::{
     IdleEviction, SessionArchivePolicy, SettingsError, SettingsManager,

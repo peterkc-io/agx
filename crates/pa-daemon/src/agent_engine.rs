@@ -71,6 +71,7 @@ pub(crate) use config::CreateSessionResources;
 pub use config::SupervisorLinkConfig;
 use config::{GoalRuntimeHandles, ProducerUsageSink, RestoredSessionModel, StartupScope};
 
+mod reload;
 mod session_engine_impl;
 
 mod turn;
@@ -191,7 +192,9 @@ pub struct AgentSessionEngine {
     /// Built once on the first prompt, reused across prompts: long-running
     /// arms clone the Arc and release this mutex before their awaits, so
     /// every read seam answers while a turn streams.
-    pub(crate) session: tokio::sync::Mutex<Option<Arc<CoreSessionEngine>>>,
+    pub(crate) session: Arc<tokio::sync::Mutex<Option<Arc<CoreSessionEngine>>>>,
+    threshold_yielded: Arc<std::sync::atomic::AtomicBool>,
+    threshold_checks_enabled: Arc<std::sync::atomic::AtomicBool>,
     /// The build gate: at most one `build_session` in flight; the eager build
     /// and the first demand seam meet at one build.
     pub(crate) session_build: tokio::sync::Mutex<()>,
@@ -283,6 +286,13 @@ pub struct AgentSessionEngine {
     /// every model-turn attempt so retries keep serving it; cleared when the
     /// episode settles.
     pub(crate) image_route: std::sync::Mutex<Option<ImageRoute>>,
+    /// Serializes `/reload`'s whole live-input refresh: overlapping reloads
+    /// resolve the store at their own read times, so an earlier reload's
+    /// already-resolved key/header pair must never land over a later
+    /// reload's fresher pair (the last reload to run leaves the target
+    /// serving the newest store).
+    pub(crate) reload_lock: std::sync::Mutex<()>,
+
     /// Turn-boundary runs register their controller here;
     /// [`SessionEngine::abort_auto_compaction`] aborts whatever holds it.
     pub(crate) auto_compaction_abort: std::sync::Mutex<Option<std::sync::Arc<AbortController>>>,
