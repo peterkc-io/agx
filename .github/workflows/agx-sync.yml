@@ -26,6 +26,9 @@ env:
 
 jobs:
   sync:
+    # Refuse a disabled schedule before the job enters the environment, which
+    # would record a deployment. sync.py repeats the check for direct runs.
+    if: github.event_name != 'schedule' || vars.AGX_SYNC_SCHEDULE == 'on'
     runs-on: ubuntu-24.04
     environment: agx-sync
     outputs:
