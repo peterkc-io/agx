@@ -58,5 +58,12 @@ fn mcp_registration_preserves_invalid_documents_and_non_null_maps() {
         // agx ignores an unparseable base and writes only its overlay.
         assert_eq!(output.status.success(), content == "{bad");
         assert_eq!(std::fs::read_to_string(path).unwrap(), content);
+        let overlay = std::fs::read(dir.path().join("settings-agx.json"))
+            .ok()
+            .map(|bytes| serde_json::from_slice::<Value>(&bytes).unwrap());
+        assert_eq!(
+            overlay.map(|value| value["mcpServers"]["fixture"]["command"].clone()),
+            (content == "{bad").then(|| json!("fixture-command"))
+        );
     }
 }

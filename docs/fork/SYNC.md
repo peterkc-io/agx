@@ -36,8 +36,9 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
   checks fail.
 - Merging into `main` needs the user's go each time.
 - Before you change upstream code to fix an upstream defect, run the upstream-fix
-  check: `git log <base>..upstream/main -- <files>`, then search upstream PRs and
-  issues. If upstream already has a fix, stop and report it.
+  check: `git fetch origin`, then `git log <base>..origin/upstream-main -- <files>`,
+  then search upstream PRs and issues. If upstream already has a fix, stop and
+  report it.
 
 ## 1. The sync job
 
@@ -54,7 +55,8 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
    `failure`;
 6. disables every enabled workflow whose file is not `.github/workflows/agx-*.yml`.
 
-A run with nothing new changes nothing.
+A run with nothing new makes no push, PR, label or status change. It still
+disables any enabled workflow that is not `agx-*`.
 
 Start a run by hand:
 
@@ -76,7 +78,8 @@ gh api repos/peterkc-io/agx/commits/<upstream head>/statuses \
   --jq '[.[] | select(.context == "agx/sync-gates") | {state, description}]'
 ```
 
-Read the upstream commits the PR brings in (`git log origin/main..origin/upstream-main`).
+Fetch first (`git fetch origin`), then read the upstream commits the PR brings in
+(`git log origin/main..origin/upstream-main`).
 Look for changes to files listed in [SEAMS.md](SEAMS.md) and for upstream work
 that may cover an agx feature in [FEATURES.md](FEATURES.md).
 
