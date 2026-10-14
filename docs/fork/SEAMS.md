@@ -51,7 +51,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/src/interactive_mode.rs` | Propagate guarded socket resolution. | Config tests and live socket coexistence scenario. |
 | `crates/pa-cli/src/interactive_mode/daemon.rs` | Reject upstream sockets before stale-daemon checks or replacement. | Socket unit tests and live coexistence scenario. |
 | `crates/pa-cli/src/lib.rs` | Prefix version output with agx. | Local install version check. |
-| `crates/pa-cli/src/main.rs` | Initialize fork lineage and default venv override before threading or dispatch. | Seven identity tests; bare release runtime and native venv override regression. |
+| `crates/pa-cli/src/main.rs` | Initialize fork lineage (`initialize_process`) before threading or dispatch. | Seven identity tests; bare release runtime and native venv override regression. |
 | `crates/pa-cli/src/print_runtime.rs` | Propagate socket rejection before opening or leasing a session. | Socket source tests and print-session fixture. |
 | `crates/pa-cli/src/public_command.rs` | Block update and alias before any installer requests. | Three fork update refusal tests. |
 | `crates/pa-cli/tests/acp_config_option_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
@@ -98,7 +98,8 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/src/agent_traces/tests.rs` | Keep legacy protocol tests on private carried upstream machinery. | Legacy trace unit tests and separate public guard test. |
 | `crates/pa-core/src/agent_traces/upload.rs` | Disable every public single-file upload before requests, including forced options. | Recording fake returns Disabled with zero requests. |
 | `crates/pa-core/src/agent_traces/upload_all.rs` | Disable public upload-all before payload collection or requests; retain private protocol coverage. | Recording fake for upload-all and legacy protocol tests. |
-| `crates/pa-core/src/kernel/bootstrap/venv/layout.rs` | Keep the writable-dir fallback in the fork namespace; the entry point supplies the normal default. | Unchanged venv_dir_honors_override test; native library suite. |
+| `crates/pa-core/src/kernel/bootstrap/venv/layout.rs` | `kernel_venv_dir` and `xdg_kernel_venv_dir` use the fork `kernel-venv-agx` names, so agx exports no venv variable to its children. | venv_dir_honors_override; kernel environment scenario; native library suite. |
+| `crates/pa-core/src/kernel/bootstrap/venv/tests.rs` | `venv_dir_honors_override` expects the fork default name. | Native library suite. |
 | `crates/pa-core/src/kernel/manager/startup.rs` | Remove internal role variables at the kernel spawn; keep only the orphan-journal path (PLAN D-26). | Actual session ipython environment inspection; explicit orphan_journal_e2e run; agx_kernel_journal name test. |
 | `crates/pa-core/src/session_engine/telemetry/status.rs` | Force release off before env/settings; endpoint None in every build; read the debug persistence assertion from the overlay. | Release-rule and retained debug telemetry tests; overlay tests. |
 | `crates/pa-core/src/tools/bash_local.rs` | Remove internal role variables immediately before bash spawn. | Actual BashOperations spawn and session kernel bash-helper environment inspection. |

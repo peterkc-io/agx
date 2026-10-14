@@ -47,7 +47,7 @@ use super::*;
 fn venv_dir_honors_override() {
     // The default path lives under $HOME.
     let base = kernel_venv_dir();
-    assert!(base.ends_with("kernel-venv"));
+    assert!(base.ends_with("kernel-venv-agx"));
 }
 
 #[test]

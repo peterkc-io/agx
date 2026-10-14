@@ -82,8 +82,9 @@ write the `telemetry.jsonl` mirror for tests when telemetry is enabled. Use an
 isolated HOME. The release client still creates the shared `telemetry.json`
 installation-id file.
 
-The executable sets its default venv through `PRIME_AGENT_KERNEL_VENV` before
-command dispatch. If that default parent is unwritable, bootstrap fails rather
-than using upstream's XDG fallback. Marked children can retain an explicit venv.
+The kernel venv defaults to `~/.prime/agent/kernel-venv-agx`. If that parent is
+unwritable, bootstrap uses `$XDG_DATA_HOME/prime/agent/kernel-venv-agx`. agx does
+not export `PRIME_AGENT_KERNEL_VENV`, so a `prime-agent` started from an agx
+session keeps upstream's venv. Marked children can retain an explicit venv.
 See [FORK.md](FORK.md) for current and planned features, and
 [SEAMS.md](SEAMS.md) for the upstream change inventory.
