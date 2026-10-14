@@ -48,8 +48,8 @@ impl PrintLane {
             return explicit;
         }
         let candidate = PathBuf::from(std::env::var("HOME").map_or_else(
-            |_| "/home/ubuntu/.prime/agent/kernel-venv/bin/python".to_string(),
-            |home| format!("{home}/.prime/agent/kernel-venv/bin/python"),
+            |_| "/home/ubuntu/.prime/agent/kernel-venv-agx/bin/python".to_string(),
+            |home| format!("{home}/.prime/agent/kernel-venv-agx/bin/python"),
         ));
         assert!(
             candidate.exists(),

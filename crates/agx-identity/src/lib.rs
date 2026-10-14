@@ -64,15 +64,35 @@ pub fn initialize_process() {
     std::env::set_var("AGX_PROCESS", "1");
 }
 
-/// Session shell and kernel processes cannot inherit internal daemon roles.
+/// The kernel runtime journals bash groups here so the host can reap them (PLAN D-26).
+pub const KERNEL_ORPHAN_JOURNAL_KEY: &str = "PRIME_AGENT_INTERNAL_ORPHAN_PROCESS_JOURNAL";
+
+/// Session shell processes cannot inherit internal daemon roles.
 pub fn strip_internal_environment(command: &mut Command) {
+    strip_internal_keys(command, None);
+}
+
+/// Kernel processes keep only the orphan-journal path, which names a file, not a daemon role.
+pub fn strip_kernel_internal_environment(command: &mut Command) {
+    strip_internal_keys(command, Some(KERNEL_ORPHAN_JOURNAL_KEY));
+}
+
+fn strip_internal_keys(command: &mut Command, keep: Option<&str>) {
     let keys: Vec<_> = std::env::vars_os()
         .map(|(key, _)| key)
         .chain(command.get_envs().map(|(key, _)| key.to_owned()))
-        .filter(|key| internal_key(key))
+        .filter(|key| internal_key(key) && keep.is_none_or(|name| !same_key(key, name)))
         .collect();
     for key in keys {
         command.env_remove(key);
+    }
+}
+
+fn same_key(key: &OsStr, name: &str) -> bool {
+    if cfg!(windows) {
+        key.as_encoded_bytes().eq_ignore_ascii_case(name.as_bytes())
+    } else {
+        key == OsStr::new(name)
     }
 }
 
@@ -287,6 +307,33 @@ mod tests {
         for key in UPSTREAM_ENV {
             assert_eq!(std::env::var_os(key).is_some(), case == "marked", "{key}");
         }
+    }
+
+    #[test]
+    fn kernel_child_commands_keep_only_the_orphan_journal_path() {
+        let mut command = Command::new("unused");
+        command.env("PRIME_AGENT_INTERNAL_NEW_ROLE", "worker");
+        command.env(KERNEL_ORPHAN_JOURNAL_KEY, "/tmp/journal");
+        command.env("AGX_KEEP", "retained");
+        strip_kernel_internal_environment(&mut command);
+        let keys: Vec<_> = command.get_envs().collect();
+        assert!(keys
+            .iter()
+            .any(|(key, value)| *key == "PRIME_AGENT_INTERNAL_NEW_ROLE" && value.is_none()));
+        assert!(keys
+            .iter()
+            .any(|(key, value)| *key == KERNEL_ORPHAN_JOURNAL_KEY
+                && *value == Some(OsStr::new("/tmp/journal"))));
+        assert!(keys
+            .iter()
+            .any(|(key, value)| *key == "AGX_KEEP" && *value == Some(OsStr::new("retained"))));
+
+        let mut shell = Command::new("unused");
+        shell.env(KERNEL_ORPHAN_JOURNAL_KEY, "/tmp/journal");
+        strip_internal_environment(&mut shell);
+        assert!(shell
+            .get_envs()
+            .any(|(key, value)| key == KERNEL_ORPHAN_JOURNAL_KEY && value.is_none()));
     }
 
     #[test]

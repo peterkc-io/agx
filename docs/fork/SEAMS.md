@@ -99,7 +99,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/src/agent_traces/upload.rs` | Disable every public single-file upload before requests, including forced options. | Recording fake returns Disabled with zero requests. |
 | `crates/pa-core/src/agent_traces/upload_all.rs` | Disable public upload-all before payload collection or requests; retain private protocol coverage. | Recording fake for upload-all and legacy protocol tests. |
 | `crates/pa-core/src/kernel/bootstrap/venv/layout.rs` | Keep the writable-dir fallback in the fork namespace; the entry point supplies the normal default. | Unchanged venv_dir_honors_override test; native library suite. |
-| `crates/pa-core/src/kernel/manager/startup.rs` | Remove internal role variables at the kernel spawn. | Actual session ipython environment inspection. |
+| `crates/pa-core/src/kernel/manager/startup.rs` | Remove internal role variables at the kernel spawn; keep only the orphan-journal path (PLAN D-26). | Actual session ipython environment inspection; explicit orphan_journal_e2e run; agx_kernel_journal name test. |
 | `crates/pa-core/src/session_engine/telemetry/status.rs` | Force release off before env/settings; endpoint None in every build; read the debug persistence assertion from the overlay. | Release-rule and retained debug telemetry tests; overlay tests. |
 | `crates/pa-core/src/tools/bash_local.rs` | Remove internal role variables immediately before bash spawn. | Actual BashOperations spawn and session kernel bash-helper environment inspection. |
 | `crates/pa-core/tests/abort_kernel_cell.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
@@ -108,6 +108,8 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/tests/kernel_prewarm.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/kernel_python_skills_unavailable.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/kernel_restore_guards.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
+| `crates/pa-core/tests/kernel_mcp_settle.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
+| `crates/pa-core/tests/kernel_startup_memo.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/kernel_snapshot_resume.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/kernel_stop_revive.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
 | `crates/pa-core/tests/kernel_teardown.rs` | Discover the fork default kernel venv without adding skips. | Linux kernel integration suites after agx bootstrap (lead-owned). |
@@ -150,7 +152,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/src/client_settings.rs` | Read persisted client-setting assertions from the overlay without removing any assertions. | Client-settings unit tests. |
 | `crates/pa-core/src/refinement/mod.rs` | factory gate reads the agx overlay like the kernel (FR-043) | refinement factory_enabled overlay tests; test_agx_settings.py |
 | `crates/pa-core/src/agent_traces/continuous/tests.rs` | Remove the overlay after the consent snapshot instead of the now-read-only base; retain all existing intent/delivery assertions. | settings race trace test; full agent_traces unit check. |
-| `crates/pa-cli/tests/print_inline_subagents_e2e.rs` | Use the agx binary in the new inline-subagent verifier. | Inline print e2e; workspace checks. |
-| `crates/pa-daemon/tests/orphan_journal_e2e.rs` | Mark the new test supervisor as agx so workers use fork runtime paths. | Orphan journal e2e; workspace checks. |
-| `crates/pa-daemon/tests/rlm_child_usage_attribution_e2e.rs` | Mark the new test supervisor as agx so workers use fork runtime paths. | Child usage attribution e2e; workspace checks. |
+| `crates/pa-cli/tests/print_inline_subagents_e2e.rs` | Use the agx binary in the new inline-subagent verifier; discover the fork default kernel venv. | Inline print e2e; workspace checks. |
+| `crates/pa-daemon/tests/orphan_journal_e2e.rs` | Mark the new test supervisor as agx so workers use fork runtime paths; discover the fork default kernel venv. | Orphan journal e2e; workspace checks. |
+| `crates/pa-daemon/tests/rlm_child_usage_attribution_e2e.rs` | Mark the new test supervisor as agx so workers use fork runtime paths; discover the fork default kernel venv. | Child usage attribution e2e; workspace checks. |
 | `crates/pa-cli/tests/exit_backfill_pty_e2e.rs` | macOS portability; upstream CI is Linux-only. | Native focused terminal checks; Linux baseline comparison (lead-owned). |
