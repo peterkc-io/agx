@@ -9,8 +9,8 @@ python3 scripts/agx/check_seams.py --revision HEAD
 python3 scripts/agx/test_check_seams.py
 ```
 
-The checker rejects missing rows and stale unchanged-file rows. New fork-owned
-files are outside the upstream seam set. Verification names below identify the
+The checker rejects missing rows and stale unchanged-file rows. Files under the
+fork-owned paths of PLAN FR-023 need no row; every other changed or added file does. Verification names below identify the
 checks for each seam; the worker report carries observed results. Linux CI is
 lead-owned. Windows runtime behavior is not checked on the macOS host.
 
@@ -100,6 +100,12 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/src/agent_traces/upload_all.rs` | Disable public upload-all before payload collection or requests; retain private protocol coverage. | Recording fake for upload-all and legacy protocol tests. |
 | `crates/pa-core/src/kernel/bootstrap/venv/layout.rs` | `kernel_venv_dir` and `xdg_kernel_venv_dir` use the fork `kernel-venv-agx` names, so agx exports no venv variable to its children. | venv_dir_honors_override; kernel environment scenario; native library suite. |
 | `crates/pa-core/src/kernel/bootstrap/venv/tests.rs` | `venv_dir_honors_override` expects the fork default name. | Native library suite. |
+| `crates/pa-core/src/tools/fork_bash_tests.rs` | Added fork test module: the actual bash tool spawn strips internal roles. | Fork test in the workspace suite. |
+| `crates/pa-core/src/agent_traces/fork_tests.rs` | Added fork test module for the public trace upload guard. | Fork test in the workspace suite. |
+| `crates/pa-core/src/session_engine/telemetry/fork_tests.rs` | Added fork test module for the release telemetry switch. | Fork test in the workspace suite. |
+| `crates/pa-core/tests/agx_kernel_journal.rs` | Added fork test: the kernel keeps pa-core's orphan-journal variable name (PLAN D-26). | Workspace test suite. |
+| `crates/pa-cli/src/fork/config_tests.rs` | Added fork test module for upstream socket refusal in config. | Fork test in the workspace suite. |
+| `crates/pa-cli/tests/fork/updates.rs` | Added fork test module: update commands refuse without network requests. | Replacement installer-update test target. |
 | `crates/pa-core/src/kernel/manager/startup.rs` | Remove internal role variables at the kernel spawn; keep only the orphan-journal path (PLAN D-26). | Actual session ipython environment inspection; explicit orphan_journal_e2e run; agx_kernel_journal name test. |
 | `crates/pa-core/src/session_engine/telemetry/status.rs` | Force release off before env/settings; endpoint None in every build; read the debug persistence assertion from the overlay. | Release-rule and retained debug telemetry tests; overlay tests. |
 | `crates/pa-core/src/tools/bash_local.rs` | Remove internal role variables immediately before bash spawn. | Actual BashOperations spawn and session kernel bash-helper environment inspection. |

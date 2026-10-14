@@ -10,7 +10,21 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
-FORK_OWNED_FILES = {"prime-agent-runtime/test/test_agx_settings.py"}
+FORK_OWNED_FILES = {
+    ".github/AGX_VOUCHED.td",
+    ".github/README.md",
+    "prime-agent-runtime/test/test_agx_settings.py",
+}
+FORK_OWNED_DIRS = ("docs/fork/", "docs/plugins/", "plugins/", "scripts/agx/")
+FORK_OWNED_PATTERN = re.compile(r"crates/agx-[^/]+/.+|\.github/workflows/agx-[^/]+\.yml")
+
+
+def fork_owned(name):
+    return (
+        name in FORK_OWNED_FILES
+        or name.startswith(FORK_OWNED_DIRS)
+        or FORK_OWNED_PATTERN.fullmatch(name) is not None
+    )
 
 
 def git_names(repo, *args):
@@ -41,11 +55,10 @@ def ledger_rows(path):
 
 
 def check(repo, base, ledger, revision=None):
-    upstream = git_names(repo, "ls-tree", "-r", "-z", "--name-only", base)
     args = ["diff", "--no-renames", "--name-only", "-z", base]
     if revision:
         args.append(revision)
-    changed = git_names(repo, *args, "--") & (upstream - FORK_OWNED_FILES)
+    changed = {name for name in git_names(repo, *args, "--") if not fork_owned(name)}
     rows = ledger_rows(ledger)
     return sorted(changed - rows), sorted(rows - changed), len(changed)
 
@@ -71,7 +84,7 @@ def main(argv=None):
         print(f"Stale seam row: {name}", file=sys.stderr)
     if missing or stale:
         return 1
-    print(f"Seam ledger matches all {count} changed upstream files.")
+    print(f"Seam ledger matches all {count} changed files outside fork-owned paths.")
     return 0
 
 

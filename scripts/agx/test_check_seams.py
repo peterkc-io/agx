@@ -62,12 +62,37 @@ class SeamChecks(unittest.TestCase):
             self.repo, self.base, self.ledger,
         ), (["one.rs"], [], 1))
 
-    def test_fork_added_file_does_not_require_an_upstream_row(self):
-        (self.repo / "fork.rs").write_text("fork-owned\n")
+    def test_added_file_outside_fork_paths_requires_a_row(self):
+        (self.repo / "fork.rs").write_text("fork addition\n")
         self.git("add", "fork.rs")
         self.assertEqual(check_seams.check(
             self.repo, self.base, self.ledger,
+        ), (["fork.rs"], [], 1))
+
+    def test_added_files_under_fork_owned_paths_need_no_row(self):
+        for name in [
+            "crates/agx-identity/src/lib.rs", "docs/fork/FEATURES.md",
+            "scripts/agx/sync.py", ".github/workflows/agx-ci.yml",
+            ".github/AGX_VOUCHED.td",
+        ]:
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fork-owned\n")
+            self.git("add", name)
+        self.assertEqual(check_seams.check(
+            self.repo, self.base, self.ledger,
         ), ([], [], 0))
+
+    def test_similar_names_outside_fork_paths_require_rows(self):
+        names = ["crates/agx.rs", ".github/workflows/ci.yml", "docs/forked.md"]
+        for name in names:
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fork addition\n")
+            self.git("add", name)
+        self.assertEqual(check_seams.check(
+            self.repo, self.base, self.ledger,
+        ), (sorted(names), [], 3))
 
     def test_exact_kernel_test_path_is_fork_owned(self):
         path = self.repo / "prime-agent-runtime/test/test_agx_settings.py"
