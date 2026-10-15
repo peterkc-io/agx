@@ -76,9 +76,10 @@ jobs:
           git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
             -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
       - name: Check the upstream seam ledger
+        if: ${{ !(github.ref_type == 'branch' && startsWith(github.ref_name, 'wip/agx-upstream-')) }}
         run: |
-          git fetch --no-tags origin refs/heads/upstream-main:refs/remotes/origin/upstream-main
-          python3 scripts/agx/check_seams.py --base origin/upstream-main
+          git fetch --no-tags origin refs/heads/upstream:refs/remotes/origin/upstream
+          python3 scripts/agx/check_seams.py --base origin/upstream
       - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin; the SHA selects the toolchain
         with:
           components: rustfmt, clippy

@@ -1,4 +1,4 @@
-# The upstream-main push uses AGX_SYNC_TOKEN, a fine-grained token with
+# The upstream push uses AGX_SYNC_TOKEN, a fine-grained token with
 # Contents and Workflows write on this repository only: GITHUB_TOKEN cannot
 # push commits that change .github/workflows/. It is a secret of the
 # agx-sync environment, so only the sync job can read it, and sync.py passes
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   statuses: write
   actions: write

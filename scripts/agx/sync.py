@@ -41,7 +41,7 @@ def git(*args, allowed=(0,), env=None):
 
 
 def push_mirror(remote, head, token):
-    """Push upstream-main with AGX_SYNC_TOKEN, the only write that uses it.
+    """Push upstream with AGX_SYNC_TOKEN, the only write that uses it.
 
     GITHUB_TOKEN cannot push commits that change .github/workflows/. The
     token reaches only this git process, through its environment, never
@@ -61,10 +61,10 @@ def push_mirror(remote, head, token):
     })
     try:
         git("push", "--no-follow-tags", remote,
-            f"{head}:refs/heads/upstream-main", env=env)
+            f"{head}:refs/heads/upstream", env=env)
     except RuntimeError as error:
         raise RuntimeError(
-            "upstream-main push rejected; check that AGX_SYNC_TOKEN is "
+            "upstream push rejected; check that AGX_SYNC_TOKEN is "
             "unexpired with Contents and Workflows write on this repository. "
             f"No PR change or status made. {error}"
         ) from None
@@ -163,6 +163,45 @@ def disable_upstream_workflows(repo):
                 print(f"Disabled upstream workflow: {workflow['path']}")
 
 
+def check_last_sync(repo, remote):
+    recovery = "See docs/fork/SYNC.md#recover-a-squashed-sync for recovery"
+    try:
+        prs = list_items(repo, "pulls?state=closed&base=main&per_page=100")
+    except (RuntimeError, OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Cannot read the complete closed PR list. {recovery}; "
+            "no GitHub writes made"
+        ) from error
+    merged = [
+        pr for pr in prs if pr["merged_at"] and (
+            pr["head"]["ref"] in ("upstream", "upstream-main")
+            or pr["head"]["ref"].startswith("sync/")
+        )
+    ]
+    if not merged:
+        return
+    pr = max(merged, key=lambda pr: pr["merged_at"])
+    number = pr["number"]
+    try:
+        git("fetch", "--no-tags", remote,
+            f"+refs/pull/{number}/head:refs/agx-sync/last-sync")
+        ancestry = git(
+            "merge-base", "--is-ancestor", "refs/agx-sync/last-sync",
+            "refs/agx-sync/main", allowed=(0, 1),
+        )
+    except (RuntimeError, OSError) as error:
+        raise RuntimeError(
+            f"Cannot check merged sync PR #{number}. {recovery}; "
+            "no GitHub writes made"
+        ) from error
+    if ancestry.returncode:
+        raise RuntimeError(
+            f"main does not contain merged sync PR #{number}'s head. "
+            f"{recovery}; no GitHub writes made"
+        )
+    print(f"Checked merged sync PR #{number}: main contains its head.")
+
+
 def prepare(repo, remote, upstream):
     # Remove the token from this process, so only the push can receive it.
     token = os.environ.pop("AGX_SYNC_TOKEN", "")
@@ -173,7 +212,7 @@ def prepare(repo, remote, upstream):
         )
     git("fetch", "--no-tags", remote,
         "+refs/heads/main:refs/agx-sync/main",
-        "+refs/heads/upstream-main:refs/agx-sync/mirror")
+        "+refs/heads/upstream:refs/agx-sync/mirror")
     git("fetch", "--no-tags", upstream,
         "+refs/heads/main:refs/agx-sync/upstream")
     main = git("rev-parse", "refs/agx-sync/main").stdout.strip()
@@ -182,17 +221,19 @@ def prepare(repo, remote, upstream):
     ancestry = git("merge-base", "--is-ancestor", mirror, head, allowed=(0, 1))
     if ancestry.returncode:
         raise RuntimeError(
-            "upstream-main cannot fast-forward to upstream main; "
+            "upstream cannot fast-forward to upstream main; "
             "no GitHub writes made."
         )
 
-    # The ancestry check permits writes. Disable workflows even on conflict.
+    check_last_sync(repo, remote)
+
+    # The ancestry checks permit writes. Disable workflows even on conflict.
     try:
         if mirror != head:
             push_mirror(remote, head, token)
         owner = repo.split("/")[0]
         prs = list_items(
-            repo, f"pulls?state=open&base=main&head={owner}:upstream-main"
+            repo, f"pulls?state=open&base=main&head={owner}:upstream"
             "&per_page=100",
         )
         if len(prs) > 1:
@@ -203,12 +244,12 @@ def prepare(repo, remote, upstream):
             "merge-base", "--is-ancestor", head, main, allowed=(0, 1),
         )
         if included.returncode == 0:
-            print("main contains upstream-main; no PR or gates needed.")
+            print("main contains upstream; no PR or gates needed.")
             return head, False
         if not prs:
             prs = [api(repo, "pulls", method="POST", payload={
-                "base": "main", "head": "upstream-main",
-                "title": "Sync upstream main",
+                "base": "main", "head": "upstream",
+                "title": "chore: sync upstream main",
                 "body": "Standing upstream sync PR. Review the sync checks "
                         "and merge with a merge commit.",
             })]
