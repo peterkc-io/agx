@@ -287,6 +287,10 @@ Current known flakes:
   PTY timeout; 20 of 20 passes alone.
 - pa-cli `clipboard_auth_commands_e2e` `tui_traces_upload_all_sweeps_with_live_progress`:
   supervisor connect refused during setup; 20 of 20 passes alone.
+- pa-daemon `stop_escalation_e2e`
+  `a_hung_worker_is_killed_within_the_escalation_window_and_its_lease_frees`:
+  the routed kill to a stopped worker was answered with success instead of a
+  timeout; 20 of 20 passes alone (Linux CI, 2026-10-15).
 
 Add an entry when a test qualifies. Remove it when upstream fixes the test.
 
