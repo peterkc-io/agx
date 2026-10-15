@@ -26,7 +26,7 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
 6 after the merge: FEATURES.md adoption, workflow check, friction notes
 ```
 
-The mirror branch was called `upstream-main` until 2026-10-14.
+The mirror branch was called `upstream-main` until the rename decided on 2026-10-14.
 
 ## Rules that apply to every sync
 
@@ -234,7 +234,6 @@ or a pass.
 - the scenario checks for the changed fork behavior, using temporary state,
   never the real shared store
 - `python3 -I -B -m unittest discover -s scripts/agx -p 'test_*.py'`
-  (limit this run to 300 seconds)
 
 These tests fail on macOS hosts and pass on Linux; Linux CI decides them:
 

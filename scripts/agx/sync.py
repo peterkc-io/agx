@@ -169,8 +169,8 @@ def check_last_sync(repo, remote):
         prs = list_items(repo, "pulls?state=closed&base=main&per_page=100")
     except (RuntimeError, OSError, json.JSONDecodeError) as error:
         raise RuntimeError(
-            f"Cannot read the complete closed PR list. {recovery}; "
-            "no GitHub writes made"
+            f"Cannot read the complete closed PR list ({error}). "
+            f"{recovery}; no GitHub writes made"
         ) from error
     merged = [
         pr for pr in prs if pr["merged_at"] and (
@@ -191,8 +191,8 @@ def check_last_sync(repo, remote):
         )
     except (RuntimeError, OSError) as error:
         raise RuntimeError(
-            f"Cannot check merged sync PR #{number}. {recovery}; "
-            "no GitHub writes made"
+            f"Cannot check merged sync PR #{number} ({error}). "
+            f"{recovery}; no GitHub writes made"
         ) from error
     if ancestry.returncode:
         raise RuntimeError(

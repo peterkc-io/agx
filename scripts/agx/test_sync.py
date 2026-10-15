@@ -640,13 +640,20 @@ class SyncTests(unittest.TestCase):
     def test_latest_merged_sync_on_second_page_refuses_all_writes(self):
         head = self.upstream_change()
         state = self.state()
+        # The latest merge has neither the highest number nor the last
+        # position, so only selection by merged_at finds it.
         state["closed_pr_pages"] = [
             [self.closed_sync_pr(
-                12, "upstream", self.base, "2026-10-13T12:00:00Z",
+                14, "upstream", self.base, "2026-10-13T12:00:00Z",
             )],
-            [self.closed_sync_pr(
-                13, "sync/2026-10-14", head, "2026-10-14T12:00:00Z",
-            )],
+            [
+                self.closed_sync_pr(
+                    12, "sync/2026-10-14", head, "2026-10-14T12:00:00Z",
+                ),
+                self.closed_sync_pr(
+                    11, "upstream", self.base, "2026-10-12T12:00:00Z",
+                ),
+            ],
         ]
         state["workflows"] = [{
             "id": 1, "path": ".github/workflows/ci.yml", "state": "active",
@@ -654,7 +661,7 @@ class SyncTests(unittest.TestCase):
         self.save_state(state)
         result = self.sync(success=False)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("PR #13", result.stderr)
+        self.assertIn("PR #12", result.stderr)
         self.assertIn("SYNC.md", result.stderr)
         self.assertIn("recovery", result.stderr)
         self.assertIn("no GitHub writes made", result.stderr)
