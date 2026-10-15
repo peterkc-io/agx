@@ -214,11 +214,16 @@ its head.
 ## 4. Checks
 
 **Local (macOS).** Run checks under `env -i` with a fixed `PATH`, `TZ=UTC`,
-`TMPDIR=/private/tmp` and a private temporary `HOME`. For example:
+`TMPDIR=/private/tmp` and a private temporary `HOME`. Keep the installed Rust
+toolchain: pass `CARGO_HOME` and `RUSTUP_HOME` from your real home and put the
+Cargo `bin` directory on `PATH`. For example:
 
 ```sh
 CHECK_HOME=$(mktemp -d /private/tmp/agx-check.XXXX)
-env -i HOME="$CHECK_HOME" PATH=/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+RUST_CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+RUST_RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+env -i HOME="$CHECK_HOME" CARGO_HOME="$RUST_CARGO_HOME" RUSTUP_HOME="$RUST_RUSTUP_HOME" \
+  PATH="$RUST_CARGO_HOME/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
   TZ=UTC TMPDIR=/private/tmp cargo test --locked -p <changed-crate> --lib
 ```
 

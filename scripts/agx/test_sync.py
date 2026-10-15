@@ -552,12 +552,17 @@ class SyncTests(unittest.TestCase):
         self.assertIn("full commit SHA", result.stderr)
         self.assertEqual(len(self.writes()), before)
 
-    def closed_sync_pr(self, number, branch, head, merged_at):
+    def closed_sync_pr(self, number, branch, head, merged_at,
+                       head_repo="tester/agx"):
         self.git(self.seed, "push", str(self.fork),
                  f"{head}:refs/pull/{number}/head")
         return {
             "number": number, "state": "closed", "base": {"ref": "main"},
-            "head": {"ref": branch}, "merged_at": merged_at,
+            "head": {
+                "ref": branch,
+                "repo": {"full_name": head_repo} if head_repo else None,
+            },
+            "merged_at": merged_at,
         }
 
     def test_squashed_sync_pr_refuses_all_writes(self):
@@ -622,6 +627,27 @@ class SyncTests(unittest.TestCase):
         self.sync()
         self.assertEqual(len(self.pushes()), 1)
         self.assertEqual(self.outputs()["run-gates"], "true")
+
+    def test_merged_sync_named_pr_from_another_repo_is_ignored(self):
+        head = self.upstream_change()
+        state = self.state()
+        state["closed_pr_pages"] = [[
+            self.closed_sync_pr(
+                12, "upstream", self.base, "2026-10-14T12:00:00Z",
+            ),
+            self.closed_sync_pr(
+                13, "sync/2026-10-15", head, "2026-10-15T12:00:00Z",
+                head_repo="contributor/agx",
+            ),
+            self.closed_sync_pr(
+                14, "upstream", head, "2026-10-15T13:00:00Z",
+                head_repo=None,
+            ),
+        ]]
+        self.save_state(state)
+        result = self.sync()
+        self.assertIn("PR #12", result.stdout)
+        self.assertEqual(len(self.pushes()), 1)
 
     def test_newer_closed_unmerged_pr_is_ignored(self):
         head = self.upstream_change()

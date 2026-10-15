@@ -173,7 +173,10 @@ def check_last_sync(repo, remote):
             f"{recovery}; no GitHub writes made"
         ) from error
     merged = [
-        pr for pr in prs if pr["merged_at"] and (
+        pr for pr in prs
+        if pr["merged_at"]
+        and (pr["head"].get("repo") or {}).get("full_name") == repo
+        and (
             pr["head"]["ref"] in ("upstream", "upstream-main")
             or pr["head"]["ref"].startswith("sync/")
         )
