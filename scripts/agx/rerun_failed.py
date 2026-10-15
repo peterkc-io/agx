@@ -18,7 +18,7 @@ import sys
 RUNNING = re.compile(r"^\s*Running (?:unittests )?(?P<source>\S+) \((?P<binary>[^)]+)\)\s*$")
 DOCTESTS = re.compile(r"^\s*Doc-tests ")
 FAILED = re.compile(r"^test (?P<name>\S+) \.\.\. FAILED$")
-ANSI = re.compile(r"\x1b\[[0-9;]*m")
+ANSI = re.compile(r"\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]")
 
 
 def package_dir(source, binary):

@@ -7,7 +7,8 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
 
 ```text
 1 sync job runs (nightly when enabled, or manual dispatch)
-    fast-forwards upstream-main, opens or updates PR "Sync upstream main"
+    checks the last merged sync PR before any GitHub write
+    fast-forwards upstream, opens or updates PR "chore: sync upstream main"
     posts agx/sync-gates on the upstream head
         |
 2 read the PR and its status
@@ -16,7 +17,7 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
     failure "conflict" .... go to 3
     format-change label ... also do the format check (2a) before any merge
         |
-3 resolve on a sync/<date> branch cut from main, never on upstream-main
+3 resolve on a sync/<date> branch cut from main, never on upstream
         |
 4 local checks, fork CI, known-flake rule
         |
@@ -25,18 +26,26 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
 6 after the merge: FEATURES.md adoption, workflow check, friction notes
 ```
 
+The mirror branch was called `upstream-main` until the rename decided on 2026-10-14.
+
 ## Rules that apply to every sync
 
-- Never commit to `upstream-main`. It mirrors upstream `main` exactly. A ruleset
+- Never commit to `upstream`. It mirrors upstream `main` exactly. A ruleset
   blocks force-pushes and deletion.
 - Never use GitHub's "Resolve conflicts" or "Update branch" buttons. They commit
-  to `upstream-main` or rebase the wrong side.
-- Land every sync with a merge commit. The repository allows only merge commits.
-  `main` must contain upstream's commits, or the next fast-forward and ancestry
-  checks fail.
+  to `upstream` or rebase the wrong side.
+- PRs from `upstream` or `sync/<date>` land with a merge commit. `main` must
+  contain upstream's commits, or the next sync refuses to write.
+- Every other PR lands with a squash merge: one commit, subject from the PR title,
+  empty body. The repository allows merge and squash, not rebase merges. GitHub
+  cannot enforce the method per PR; check the source before merging.
+- PR titles and commit subjects use Conventional Commit form. The standing PR is
+  `chore: sync upstream main`. A conflict-resolution PR is
+  `chore: merge upstream <short SHA> into main`; its branch's merge commit is
+  `chore: merge upstream <short SHA> into sync/<date>`.
 - Merging into `main` needs the user's go each time.
 - Before you change upstream code to fix an upstream defect, run the upstream-fix
-  check: `git fetch origin`, then `git log <base>..origin/upstream-main -- <files>`,
+  check: `git fetch origin`, then `git log <base>..origin/upstream -- <files>`,
   then search upstream PRs and issues. If upstream already has a fix, stop and
   report it.
 
@@ -44,16 +53,26 @@ or a person doing the same work. It assumes you can read Rust and use `git` and
 
 `.github/workflows/agx-sync.yml` runs `scripts/agx/sync.py`. Each run:
 
-1. fetches the fork and upstream;
-2. fast-forwards `upstream-main` to upstream `main` with `AGX_SYNC_TOKEN`;
-3. opens the PR "Sync upstream main" (`upstream-main` into `main`), or reuses the
-   open one;
-4. adds the `format-change` label and a comment when format-sensitive paths
+1. fetches the fork and upstream, and refuses a diverged mirror;
+2. reads every page of closed PRs into `main`, ignores unmerged PRs, and selects
+   the most recently merged PR from the mirror or a `sync/<date>` branch;
+3. fetches that PR's `refs/pull/<number>/head` and checks that `main` contains it;
+   no such PR passes, but an incomplete PR-list read or missing ancestry fails
+   before any GitHub write (see [recovery](#recover-a-squashed-sync));
+4. fast-forwards `upstream` to upstream `main` with `AGX_SYNC_TOKEN`;
+5. opens the PR "chore: sync upstream main" (`upstream` into `main`), or reuses
+   the open one;
+6. adds the `format-change` label and a comment when format-sensitive paths
    changed;
-5. checks for a merge conflict and posts `agx/sync-gates` `failure` `conflict`, or
+7. checks for a merge conflict and posts `agx/sync-gates` `failure` `conflict`, or
    runs the fork CI on `main` merged with the upstream head and posts `success` or
    `failure`;
-6. disables every enabled workflow whose file is not `.github/workflows/agx-*.yml`.
+8. disables every enabled workflow whose file is not `.github/workflows/agx-*.yml`.
+
+Only the pushing job uses Environment `agx-sync`. Only the mirror push receives
+`AGX_SYNC_TOKEN`; every other GitHub write uses `GITHUB_TOKEN`. The workflow
+grants `GITHUB_TOKEN` `contents: read`, not `write`. The status job runs only
+after successful preparation, so an ancestry refusal cannot post a status.
 
 A run with nothing new makes no push, PR, label or status change. It still
 disables any enabled workflow that is not `agx-*`.
@@ -73,13 +92,13 @@ and posted no status. See [Rotate the token](#rotate-agx_sync_token).
 ## 2. Review the standing PR
 
 ```sh
-gh pr list -R peterkc-io/agx --head upstream-main
+gh pr list -R peterkc-io/agx --head upstream
 gh api repos/peterkc-io/agx/commits/<upstream head>/statuses \
   --jq '[.[] | select(.context == "agx/sync-gates") | {state, description}]'
 ```
 
 Fetch first (`git fetch origin`), then read the upstream commits the PR brings in
-(`git log origin/main..origin/upstream-main`).
+(`git log origin/main..origin/upstream`).
 Look for changes to files listed in [SEAMS.md](SEAMS.md) and for upstream work
 that may cover an agx feature in [FEATURES.md](FEATURES.md).
 
@@ -92,7 +111,7 @@ format change can make one program misread data the other wrote.
 
 When the label is set, hold the merge and test both programs on a copy:
 
-1. Build `agx` from the sync result and `prime-agent` from `origin/upstream-main`.
+1. Build `agx` from the sync result and `prime-agent` from `origin/upstream`.
 2. Copy the store to a temporary home. The copy holds credentials: keep it on
    this machine and delete it afterwards.
 
@@ -115,57 +134,110 @@ Never point a test at the real `~/.prime/agent`.
 ```sh
 git fetch origin
 git switch -c sync/<YYYY-MM-DD> origin/main
-git merge --no-ff origin/upstream-main
+git merge --no-ff -m "chore: merge upstream <short SHA> into sync/<YYYY-MM-DD>" origin/upstream
 ```
 
 Resolve each conflict inside the seam that [SEAMS.md](SEAMS.md) lists for that
 file. Keep each seam to about 30 changed lines. Stop and ask when a conflict needs
 a change outside a listed seam.
 
-**Cargo.lock:** take upstream's file, then let Cargo add only the fork crates.
+**Cargo.lock:** take upstream's file, then let Cargo make the smallest update
+needed by the fork.
 
 ```sh
-git checkout origin/upstream-main -- Cargo.lock
+git checkout origin/upstream -- Cargo.lock
 cargo metadata --format-version 1 > /dev/null   # online; never --offline
-git diff origin/upstream-main -- Cargo.lock
+git diff origin/upstream -- Cargo.lock
 ```
 
-The diff must show only agx crate entries (about 8 lines). Never run
-`cargo generate-lockfile` or `cargo update`. If registry versions change, stop.
+Review the diff: keep only the smallest fork-required update. Never run
+`cargo generate-lockfile` or `cargo update`, and never bump registry versions.
+If registry versions change, stop.
 
-**New upstream files** may need a fork change only of these kinds:
+**New upstream test files** may need a fork change only of these kinds:
 
 1. the binary name, for example `CARGO_BIN_EXE_agx`;
-2. a Linux-only `cfg(target_os = "linux")` guard;
+2. `cfg(target_os = "linux")` on a test that expects Linux;
 3. `AGX_PROCESS=1` on a test supervisor;
 4. the settings path `settings-agx.json` in a test;
 5. the ioctl cast `libc::c_ulong::from(libc::TIOCSCTTY)`;
 6. the kernel venv path `kernel-venv-agx` in a test's interpreter discovery.
 
-Any other change to a new upstream file needs the user's decision. Search new test
-files for `kernel-venv/`: a test that cannot find its interpreter often returns
-early and still reports "passed".
+Any other change to a new upstream test file needs the user's decision. Search
+new test files for `kernel-venv/`: a test that cannot find its interpreter often
+returns early and still reports "passed".
 
-**SEAMS.md:** add, change or remove rows so the ledger matches the result, then:
+**SEAMS.md:** add, change or remove rows so the ledger matches the result.
+Every changed file outside the fork-owned paths needs a row. In its Reason cell,
+name the touched function or item and the reason. Remove rows for unchanged files.
+Then run:
 
 ```sh
-python3 scripts/agx/check_seams.py --base origin/upstream-main
+python3 scripts/agx/check_seams.py --base origin/upstream
 ```
 
-Commit the merge with `git commit` (signed, hooks on). Push the branch and open a
-PR into `main`; the fork CI runs on PRs into `main`. The PR text names the
-upstream head it takes in.
+Commit the resolved merge with
+`git commit -m "chore: merge upstream <short SHA> into sync/<date>"`
+(signed, hooks on). Push the branch and open a PR into `main` titled
+`chore: merge upstream <short SHA> into main`; the fork CI runs on PRs into
+`main`. The PR text names the upstream head it takes in.
+
+### Recover a squashed sync
+
+If preparation says `main` does not contain a merged sync PR's head, stop normal
+sync work. Do not bypass the check. It may mean a sync PR was squash-merged.
+Confirm the named PR and get the user's go for recovery. If the closed-PR list
+could not be read completely, fix that read failure and rerun preparation;
+do not guess which PR was latest.
+
+With the user's go, create a new `sync/<date>` branch from the current `main`.
+Fetch the offending PR's head, not the current mirror head: GitHub retains the
+PR ref even if its source branch is gone.
+
+```sh
+git fetch origin
+git switch -c sync/<YYYY-MM-DD> origin/main
+git fetch --no-tags origin refs/pull/<number>/head
+git merge --no-ff -m "chore: merge upstream <short SHA> into sync/<YYYY-MM-DD>" FETCH_HEAD
+```
+
+If no later fork PR changed the same lines, this merge has no conflicts.
+Otherwise follow the conflict procedure above and keep the later fork changes.
+Stop for the user's decision if a conflict is unclear. Never reset `main`,
+force-push it or overwrite a fork change.
+
+Run the checks and land this as a sync PR with a merge commit and the sync title
+above, with the user's go. Recovery is complete only when the next sync run
+passes the ancestry check and reports the checked PR and that `main` contains
+its head.
 
 ## 4. Checks
 
-**Local (macOS).** Run with `env -i`, `TZ=UTC`, `TMPDIR=/private/tmp` and a
-temporary `HOME`, with `--locked`, and stop any run that exceeds 900 seconds per
-crate or 300 seconds per single test:
+**Local (macOS).** Run checks under `env -i` with a fixed `PATH`, `TZ=UTC`,
+`TMPDIR=/private/tmp` and a private temporary `HOME`. Keep the installed Rust
+toolchain: pass `CARGO_HOME` and `RUSTUP_HOME` from your real home and put the
+Cargo `bin` directory on `PATH`. For example:
+
+```sh
+CHECK_HOME=$(mktemp -d /private/tmp/agx-check.XXXX)
+RUST_CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+RUST_RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
+env -i HOME="$CHECK_HOME" CARGO_HOME="$RUST_CARGO_HOME" RUSTUP_HOME="$RUST_RUSTUP_HOME" \
+  PATH="$RUST_CARGO_HOME/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+  TZ=UTC TMPDIR=/private/tmp cargo test --locked -p <changed-crate> --lib
+```
+
+Use that environment for each command. Remove the private home after the checks.
+Use `--locked` on Cargo commands that accept it. Limit each crate run to 900
+seconds and each single test to 300 seconds; a timeout is a failure, not a flake
+or a pass.
 
 - `cargo fmt --all --check`
-- `cargo clippy --workspace --all-targets -- -D warnings`
-- `cargo build --release`
+- `cargo clippy --locked --workspace --all-targets -- -D warnings`
+- `cargo build --locked --release --workspace`
 - unit tests of the changed crates and the fork's own tests
+- the scenario checks for the changed fork behavior, using temporary state,
+  never the real shared store
 - `python3 -I -B -m unittest discover -s scripts/agx -p 'test_*.py'`
 
 These tests fail on macOS hosts and pass on Linux; Linux CI decides them:
@@ -186,10 +258,14 @@ These tests fail on macOS hosts and pass on Linux; Linux CI decides them:
 
 **Fork CI (Linux).** Compare the sync PR's run with a baseline run on the same
 upstream head without fork changes. To make one, commit only
-`.github/workflows/agx-ci.yml` and `scripts/agx/rerun_failed.py` from commit
-`bc22c2cd8` on top of `origin/upstream-main`, and push it as a
-`wip/agx-upstream-<sha>` branch. Do not take them from `main`: its workflow also
-checks the seam ledger, which fails on a tree without the fork's files.
+`.github/workflows/agx-ci.yml` and `scripts/agx/rerun_failed.py` from the current
+`main` on top of the recorded upstream SHA, and push it as a
+`wip/agx-upstream-<sha>` branch. The old `agx/ci` template is retired.
+The seam step skips only branch runs named `wip/agx-upstream-*`, for both push
+and manual dispatch. It still runs on normal fork branches, `main`, PR merge
+refs and tags, including a tag named `wip/agx-upstream-x`.
+Keep the baseline branch to the recorded upstream SHA plus those two CI files;
+a green run is baseline evidence for that SHA only.
 The ignored tests must match; every other test must pass, except a known flake.
 Delete the `wip/**` branch after the comparison; its run log stays on GitHub.
 
@@ -201,9 +277,11 @@ Formatting, Clippy and the release build must still pass, and the test run must
 complete. More than 5 failures, a test in code agx changes, or a different
 failure text stops the sync for a decision.
 
-The CI helper `scripts/agx/rerun_failed.py` misses failed tests whose result line
-starts with the escape sequence `ESC[>4;0m`. When it reports no failed test after
-a failure, rerun those tests by hand.
+The CI helper `scripts/agx/rerun_failed.py` finds failed tests even when result
+lines start with ANSI CSI sequences, including `ESC[>4;0m` and `ESC[?25l`.
+It reports rerun counts but leaves the job failed; apply the rule above.
+If a failed run yields no failed test, inspect the log and rerun the affected
+tests by hand; missing rerun evidence is not a pass.
 
 Current known flakes:
 
@@ -214,6 +292,10 @@ Current known flakes:
   PTY timeout; 20 of 20 passes alone.
 - pa-cli `clipboard_auth_commands_e2e` `tui_traces_upload_all_sweeps_with_live_progress`:
   supervisor connect refused during setup; 20 of 20 passes alone.
+- pa-daemon `stop_escalation_e2e`
+  `a_hung_worker_is_killed_within_the_escalation_window_and_its_lease_frees`:
+  the routed kill to a stopped worker was answered with success instead of a
+  timeout; 20 of 20 passes alone (Linux CI, 2026-10-15).
 
 Add an entry when a test qualifies. Remove it when upstream fixes the test.
 
@@ -231,17 +313,18 @@ stays open, close it with a comment that names the sync PR.
 ## 6. After the merge
 
 1. **Feature list.** For each [FEATURES.md](FEATURES.md) row that the new upstream
-   code covers, read the upstream code, not only the PR title. Full adoption: name
-   the upstream PR and commit or version, and remove the fork's copy. Partial
-   adoption: keep the row and say what remains.
+   code covers, read the upstream code, not only the PR title. Full adoption:
+   remove the fork's copy and its table row in this sync, then record the retired
+   feature ID, upstream PR and version in prose in `FEATURES.md` (as for AGX-014).
+   Partial adoption: keep the row and say what remains.
 2. **Workflows.** Only `agx-*` workflows may be enabled:
 
    ```sh
    gh workflow list -R peterkc-io/agx --all
-   gh run list -R peterkc-io/agx --branch upstream-main
+   gh run list -R peterkc-io/agx --branch upstream
    ```
 
-   A new upstream workflow can run once on the `upstream-main` push before the job
+   A new upstream workflow can run once on the `upstream` push before the job
    disables it. Read the permissions of any new upstream workflow. Disabling a
    workflow by hand needs the user's go:
    `gh workflow disable <file> -R peterkc-io/agx`.

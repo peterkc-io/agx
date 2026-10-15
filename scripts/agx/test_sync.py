@@ -44,6 +44,15 @@ route = url.path.split("/", 3)[3]
 query = parse_qs(url.query)
 result = None
 if method == "GET":
+    if route == "pulls" and query["state"] == ["closed"]:
+        if state.get("closed_pr_read_failure"):
+            path.write_text(json.dumps(state))
+            print("closed PR list read failed on page 2", file=sys.stderr)
+            sys.exit(1)
+        assert "--paginate" in args and "--slurp" in args
+        path.write_text(json.dumps(state))
+        print(json.dumps(state.get("closed_pr_pages", [[]])))
+        sys.exit(0)
     if route == "pulls":
         result = [
             pr for pr in state["prs"] if pr["state"] == query["state"][0]
@@ -64,7 +73,7 @@ if method == "GET":
         result = [result]
 elif route == "pulls":
     result = {
-        **payload, "head": "tester:upstream-main",
+        **payload, "head": "tester:upstream",
         "number": len(state["prs"]) + 1, "state": "open", "labels": [],
     }
     state["prs"].append(result)
@@ -149,7 +158,7 @@ class SyncTests(unittest.TestCase):
         self.base = self.commit("conflict.txt", "base\n")
         self.git(self.seed, "push", str(self.upstream), "HEAD:main")
         self.git(self.seed, "push", str(self.fork),
-                 "HEAD:main", "HEAD:upstream-main")
+                 "HEAD:main", "HEAD:upstream")
         self.git(self.root, "clone", "--branch", "main",
                  str(self.fork), str(self.checkout))
         self.bin = self.root / "bin"
@@ -229,7 +238,7 @@ class SyncTests(unittest.TestCase):
         return result
 
     def assert_credentials_separated(self):
-        """Only the upstream-main push gets AGX_SYNC_TOKEN (FR-044)."""
+        """Only the upstream push gets AGX_SYNC_TOKEN (FR-044)."""
         records = [json.loads(line)
                    for line in self.credential_log.read_text().splitlines()]
         for record in records:
@@ -266,7 +275,7 @@ class SyncTests(unittest.TestCase):
     def open_pr(self):
         return {
             "number": 7, "state": "open", "base": "main",
-            "head": "tester:upstream-main", "labels": [],
+            "head": "tester:upstream", "labels": [],
         }
 
     def test_behind_fast_forwards_once(self):
@@ -274,13 +283,17 @@ class SyncTests(unittest.TestCase):
         result = self.sync()
         self.assert_not_disclosed(result)
         self.assertEqual(
-            self.git(self.fork, "rev-parse", "upstream-main"), head,
+            self.git(self.fork, "rev-parse", "upstream"), head,
         )
         self.assertEqual(self.pushes(), [[
             "push", "--no-follow-tags", "origin",
-            f"{head}:refs/heads/upstream-main",
+            f"{head}:refs/heads/upstream",
         ]])
         self.assertEqual(len(self.state()["prs"]), 1)
+        self.assertEqual(
+            self.state()["prs"][0]["title"], "chore: sync upstream main",
+        )
+        self.assertIn("merge commit", self.state()["prs"][0]["body"])
         self.assertEqual(self.outputs(), {"head": head, "run-gates": "true"})
         records = self.assert_credentials_separated()
         self.assertTrue(any(r["tool"] == "gh" for r in records))
@@ -326,7 +339,7 @@ class SyncTests(unittest.TestCase):
         self.assertIn("AGX_SYNC_TOKEN", result.stderr)
         self.assertEqual(len(self.pushes()), 1)
         self.assertEqual(
-            self.git(self.fork, "rev-parse", "upstream-main"), self.base,
+            self.git(self.fork, "rev-parse", "upstream"), self.base,
         )
         self.assertEqual(self.state()["prs"], [])
         self.assertEqual(self.state()["statuses"], {})
@@ -361,7 +374,7 @@ class SyncTests(unittest.TestCase):
 
     def test_diverged_mirror_rejects_all_writes(self):
         divergent = self.commit("mirror-only.txt", "mirror\n")
-        self.git(self.seed, "push", str(self.fork), "HEAD:upstream-main")
+        self.git(self.seed, "push", str(self.fork), "HEAD:upstream")
         self.git(self.seed, "reset", "--hard", self.base)
         self.upstream_change()
         state = self.state()
@@ -373,7 +386,7 @@ class SyncTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("cannot fast-forward", result.stderr)
         self.assertEqual(
-            self.git(self.fork, "rev-parse", "upstream-main"), divergent,
+            self.git(self.fork, "rev-parse", "upstream"), divergent,
         )
         self.assertEqual(self.pushes(), [])
         self.assertEqual(self.writes(), [])
@@ -538,6 +551,165 @@ class SyncTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("full commit SHA", result.stderr)
         self.assertEqual(len(self.writes()), before)
+
+    def closed_sync_pr(self, number, branch, head, merged_at,
+                       head_repo="tester/agx"):
+        self.git(self.seed, "push", str(self.fork),
+                 f"{head}:refs/pull/{number}/head")
+        return {
+            "number": number, "state": "closed", "base": {"ref": "main"},
+            "head": {
+                "ref": branch,
+                "repo": {"full_name": head_repo} if head_repo else None,
+            },
+            "merged_at": merged_at,
+        }
+
+    def test_squashed_sync_pr_refuses_all_writes(self):
+        head = self.upstream_change()
+        self.git(self.seed, "checkout", "-b", "squashed", self.base)
+        self.git(self.seed, "merge", "--squash", "main")
+        self.git(self.seed, "commit", "-m", "squashed sync")
+        self.commit("fork.txt", "later fork change\n")
+        self.git(self.seed, "push", str(self.fork), "HEAD:main")
+        for branch in ("upstream", "upstream-main", "sync/2026-10-14"):
+            with self.subTest(branch=branch):
+                state = self.state()
+                state["closed_pr_pages"] = [[self.closed_sync_pr(
+                    12, branch, head, "2026-10-14T12:00:00Z",
+                )]]
+                state["workflows"] = [{
+                    "id": 1, "path": ".github/workflows/ci.yml",
+                    "state": "active",
+                }]
+                self.save_state(state)
+                result = self.sync(success=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("PR #12", result.stderr)
+                self.assertIn("SYNC.md", result.stderr)
+                self.assertIn("recovery", result.stderr)
+                self.assertIn("no GitHub writes made", result.stderr)
+                self.assertEqual(self.pushes(), [])
+                self.assertEqual(self.writes(), [])
+
+    def test_merge_commit_sync_passes_with_advanced_mirror(self):
+        head = self.upstream_change()
+        self.git(self.seed, "checkout", "-b", "fork-main", self.base)
+        self.commit("fork.txt", "fork\n")
+        self.git(self.seed, "merge", "--no-ff", "main", "-m", "sync merge")
+        self.git(self.seed, "push", str(self.fork), "HEAD:main")
+        self.git(self.seed, "checkout", "main")
+        advanced = self.upstream_change("next.txt", "next upstream\n")
+        self.git(self.seed, "push", str(self.fork), "HEAD:upstream")
+        state = self.state()
+        state["closed_pr_pages"] = [[self.closed_sync_pr(
+            12, "upstream", head, "2026-10-14T12:00:00Z",
+        )]]
+        self.save_state(state)
+        result = self.sync()
+        self.assertIn("PR #12", result.stdout)
+        self.assertIn("main contains its head", result.stdout)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.outputs(), {
+            "head": advanced, "run-gates": "true",
+        })
+
+    def test_no_merged_sync_pr_passes(self):
+        head = self.upstream_change()
+        state = self.state()
+        state["closed_pr_pages"] = [[
+            self.closed_sync_pr(12, "upstream", head, None),
+            self.closed_sync_pr(
+                13, "agx/feature", head, "2026-10-14T12:00:00Z",
+            ),
+        ]]
+        self.save_state(state)
+        self.sync()
+        self.assertEqual(len(self.pushes()), 1)
+        self.assertEqual(self.outputs()["run-gates"], "true")
+
+    def test_merged_sync_named_pr_from_another_repo_is_ignored(self):
+        head = self.upstream_change()
+        state = self.state()
+        state["closed_pr_pages"] = [[
+            self.closed_sync_pr(
+                12, "upstream", self.base, "2026-10-14T12:00:00Z",
+            ),
+            self.closed_sync_pr(
+                13, "sync/2026-10-15", head, "2026-10-15T12:00:00Z",
+                head_repo="contributor/agx",
+            ),
+            self.closed_sync_pr(
+                14, "upstream", head, "2026-10-15T13:00:00Z",
+                head_repo=None,
+            ),
+        ]]
+        self.save_state(state)
+        result = self.sync()
+        self.assertIn("PR #12", result.stdout)
+        self.assertEqual(len(self.pushes()), 1)
+
+    def test_newer_closed_unmerged_pr_is_ignored(self):
+        head = self.upstream_change()
+        state = self.state()
+        state["closed_pr_pages"] = [[
+            self.closed_sync_pr(
+                12, "upstream", self.base, "2026-10-14T12:00:00Z",
+            ),
+            self.closed_sync_pr(13, "sync/2026-10-15", head, None),
+        ]]
+        self.save_state(state)
+        result = self.sync()
+        self.assertIn("PR #12", result.stdout)
+        self.assertEqual(len(self.pushes()), 1)
+
+    def test_latest_merged_sync_on_second_page_refuses_all_writes(self):
+        head = self.upstream_change()
+        state = self.state()
+        # The latest merge has neither the highest number nor the last
+        # position, so only selection by merged_at finds it.
+        state["closed_pr_pages"] = [
+            [self.closed_sync_pr(
+                14, "upstream", self.base, "2026-10-13T12:00:00Z",
+            )],
+            [
+                self.closed_sync_pr(
+                    12, "sync/2026-10-14", head, "2026-10-14T12:00:00Z",
+                ),
+                self.closed_sync_pr(
+                    11, "upstream", self.base, "2026-10-12T12:00:00Z",
+                ),
+            ],
+        ]
+        state["workflows"] = [{
+            "id": 1, "path": ".github/workflows/ci.yml", "state": "active",
+        }]
+        self.save_state(state)
+        result = self.sync(success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("PR #12", result.stderr)
+        self.assertIn("SYNC.md", result.stderr)
+        self.assertIn("recovery", result.stderr)
+        self.assertIn("no GitHub writes made", result.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.writes(), [])
+
+    def test_failed_closed_pr_list_refuses_all_writes(self):
+        self.upstream_change()
+        state = self.state()
+        state["closed_pr_read_failure"] = True
+        state["workflows"] = [{
+            "id": 1, "path": ".github/workflows/ci.yml", "state": "active",
+        }]
+        self.save_state(state)
+        result = self.sync(success=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("read", result.stderr)
+        self.assertIn("SYNC.md", result.stderr)
+        self.assertIn("recovery", result.stderr)
+        self.assertIn("no GitHub writes made", result.stderr)
+        self.assertEqual(self.pushes(), [])
+        self.assertEqual(self.writes(), [])
 
     def test_main_already_contains_upstream_creates_no_pr(self):
         self.sync()

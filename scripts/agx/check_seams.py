@@ -16,7 +16,7 @@ FORK_OWNED_FILES = {
     "prime-agent-runtime/test/test_agx_settings.py",
 }
 FORK_OWNED_DIRS = ("docs/fork/", "docs/plugins/", "plugins/", "scripts/agx/")
-FORK_OWNED_PATTERN = re.compile(r"crates/agx-[^/]+/.+|\.github/workflows/agx-[^/]+\.yml")
+FORK_OWNED_PATTERN = re.compile(r"crates/agx-[^/]*/.+|\.github/workflows/agx-[^/]*\.yml")
 
 
 def fork_owned(name):

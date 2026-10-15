@@ -83,6 +83,16 @@ class SeamChecks(unittest.TestCase):
             self.repo, self.base, self.ledger,
         ), ([], [], 0))
 
+    def test_empty_agx_stems_are_fork_owned(self):
+        for name in ("crates/agx-/src/lib.rs", ".github/workflows/agx-.yml"):
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("fork-owned\n")
+            self.git("add", name)
+        self.assertEqual(check_seams.check(
+            self.repo, self.base, self.ledger,
+        ), ([], [], 0))
+
     def test_similar_names_outside_fork_paths_require_rows(self):
         names = ["crates/agx.rs", ".github/workflows/ci.yml", "docs/forked.md"]
         for name in names:
