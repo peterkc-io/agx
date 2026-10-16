@@ -103,14 +103,29 @@ class GeneratorTests(unittest.TestCase):
         before = copy.deepcopy((self.metadata, overrides, self.sources))
         text = gen_bazel.generate(self.metadata, overrides, self.sources)[
             "crates/demo/BUILD.bazel"]
-        for expected in ['data = ["//:fixture", "//:bazel_kernel_python"]',
-                         'compile_data = ["//:included"]',
-                         '"RUNTIME": "yes"', '"COMPILE": "yes"',
-                         '"agx-kernel"', 'args = ["--nocapture"]',
-                         '"AGX_BAZEL_KERNEL": "1"',
-                         '$(rootpath //:bazel_kernel_python)']:
+        for expected in [
+                'data = ["//:fixture", "//:bazel_kernel_python", '
+                '"//:bundled_skills"]',
+                'compile_data = ["//:included"]',
+                '"RUNTIME": "yes"', '"COMPILE": "yes"',
+                '"agx-kernel"', 'args = ["--nocapture"]',
+                '"AGX_BAZEL_KERNEL": "1"',
+                '"AGX_BAZEL_PACKAGE": "1"',
+                '$(rootpath //:bazel_kernel_python)']:
             self.assertIn(expected, text)
         self.assertEqual((self.metadata, overrides, self.sources), before)
+
+    def test_exclusive_tag_preserves_network_sandbox_and_kernel_data(self):
+        overrides = {"targets": {"//crates/demo:test__integration": {
+            "tags": ["exclusive"], "kernel": True,
+            "data": ["//:bundled_skills"],
+        }}}
+        text = gen_bazel.generate(self.metadata, overrides, self.sources)[
+            "crates/demo/BUILD.bazel"]
+        self.assertIn(
+            'tags = ["block-network", "exclusive", "agx-kernel"]', text)
+        self.assertIn(
+            'data = ["//:bundled_skills", "//:bazel_kernel_python"]', text)
 
     def test_unused_override_fails_visibly(self):
         with self.assertRaisesRegex(ValueError, "absent targets.*missing"):

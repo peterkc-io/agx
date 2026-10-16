@@ -5,8 +5,10 @@ from contextlib import ExitStack
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
+import uuid
 from typing import Mapping, Sequence
 
 
@@ -36,11 +38,40 @@ def validate_kernel(env: Mapping[str, str]) -> None:
 
 def run_test(command: Sequence[str], source_env: Mapping[str, str]) -> int:
     env = dict(source_env)
-    home = Path(env["TEST_TMPDIR"]).resolve()
-    env.update(HOME=str(home), TMPDIR=str(home), PYTHONNOUSERSITE="1",
-               PYTHONDONTWRITEBYTECODE="1")
     command = [str(Path(command[0]).absolute()), *command[1:]]
     with ExitStack() as cleanup:
+        # Deep Bazel TEST_TMPDIR paths overflow Unix socket addresses.
+        # Four characters also fit macOS's canonical /private/tmp prefix.
+        for _ in range(16):
+            home = (Path("/tmp") / uuid.uuid4().hex[:4]).resolve()
+            try:
+                home.mkdir()
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise RuntimeError("Cannot allocate a short test temporary dir")
+        cleanup.callback(shutil.rmtree, home)
+        env.update(HOME=str(home), TMPDIR=str(home), PYTHONNOUSERSITE="1",
+                   PYTHONDONTWRITEBYTECODE="1")
+        if env.get("AGX_BAZEL_SOURCE_ROOT") == "1":
+            source = Path("/tmp/agx-bazel-src")
+            source.symlink_to(runfile(".", env), target_is_directory=True)
+            cleanup.callback(source.unlink)
+        if env.get("AGX_BAZEL_CARGO_LAYOUT") == "1":
+            # hold_refusal recognizes Cargo's target/debug process image.
+            executable = home / "target/debug" / Path(command[0]).name
+            executable.parent.mkdir(parents=True)
+            shutil.copy2(command[0], executable)
+            command[0] = str(executable)
+        if env.get("AGX_BAZEL_PACKAGE") == "1":
+            package = runfile(".", env)
+            env.update(PI_PACKAGE_DIR=str(package), AGX_PROCESS="1")
+            skill_paths = sorted((package / "skills").glob("*/src"))
+            if not skill_paths:
+                raise RuntimeError("Missing declared bundled Python skills")
+            env["PYTHONPATH"] = os.pathsep.join(
+                str(path) for path in skill_paths)
         if env.get("AGX_BAZEL_KERNEL") == "1":
             prefix = runfile(env["AGX_BAZEL_KERNEL_PREFIX"], env)
             python = prefix / "bin/python3"
@@ -51,9 +82,9 @@ def run_test(command: Sequence[str], source_env: Mapping[str, str]) -> int:
             venv = home / ".prime/agent/kernel-venv-agx"
             venv.parent.mkdir(parents=True, exist_ok=True)
             venv.symlink_to(prefix, target_is_directory=True)
-            cleanup.callback(venv.unlink)
             env.update(PA_CORE_KERNEL_PYTHON=str(python),
-                       PA_E2E_KERNEL_PYTHON=str(python))
+                       PA_E2E_KERNEL_PYTHON=str(python),
+                       PRIME_AGENT_KERNEL_PYTHON=str(python))
             validate_kernel(env)
         binaries = {name: env[key] for name, key in (
             ("agx", "AGX_BAZEL_AGX"),

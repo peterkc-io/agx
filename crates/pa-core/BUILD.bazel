@@ -30,8 +30,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:core_test_fixtures"],
+    data = ["//:core_test_fixtures", "//:bundled_skills"],
     compile_data = ["//:core_test_fixtures", "//crates/agx-settings:tests/consent_generation.rs"],
+    env = {"AGX_BAZEL_PACKAGE": "1"},
     tags = ["block-network"],
 )
 
@@ -78,8 +79,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -152,8 +153,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -169,8 +170,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -186,8 +187,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -203,8 +204,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -219,8 +220,9 @@ rust_test(
     deps = ["//crates/agx-settings:agx_settings", "//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-models:pa_models", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-types:pa_types", ":pa_core"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    rustc_env = {"CARGO_MANIFEST_DIR": "/tmp/agx-bazel-src/crates/pa-core"},
     data = ["//crates/pa-core:tests/fixtures/protocol_caps_kernel.py"],
+    env = {"AGX_BAZEL_SOURCE_ROOT": "1"},
     tags = ["block-network"],
 )
 
@@ -235,8 +237,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -252,8 +254,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -283,8 +285,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -314,8 +316,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -331,8 +333,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -348,8 +350,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
@@ -407,8 +409,9 @@ rust_test(
     deps = ["//crates/agx-settings:agx_settings", "//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-models:pa_models", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-types:pa_types", ":pa_core"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    rustc_env = {"CARGO_MANIFEST_DIR": "/tmp/agx-bazel-src/crates/pa-core"},
     data = ["//:release_inputs"],
+    env = {"AGX_BAZEL_SOURCE_ROOT": "1"},
     tags = ["block-network"],
 )
 
@@ -423,8 +426,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
-    data = ["//:bazel_kernel_python"],
-    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    data = ["//:bazel_kernel_python", "//:bundled_skills"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)", "AGX_BAZEL_PACKAGE": "1"},
     args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )

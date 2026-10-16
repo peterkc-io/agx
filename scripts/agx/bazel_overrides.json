@@ -154,12 +154,13 @@
       "data": [
         "//crates/pa-cli:agx"
       ],
-      "reason": "crates/pa-cli/tests/agents_view_refusal_panel_e2e.rs:41 reads compiled binary path",
+      "reason": "crates/pa-cli/tests/agents_view_refusal_panel_e2e.rs:41 reads compiled binary path; pa-daemon/src/hold_refusal.rs:127-139 classifies the live test image by Cargo target/debug layout",
       "rustc_env": {
         "CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx"
       },
       "env": {
-        "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"
+        "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)",
+        "AGX_BAZEL_CARGO_LAYOUT": "1"
       }
     },
     "//crates/pa-cli:test__agents_view_reply_e2e": {
@@ -238,12 +239,13 @@
       "data": [
         "//crates/pa-cli:agx"
       ],
-      "reason": "crates/pa-cli/tests/continue_guard_e2e.rs:41 reads compiled binary path",
+      "reason": "crates/pa-cli/tests/continue_guard_e2e.rs:41 reads compiled binary path; pa-daemon/src/hold_refusal.rs:127-139 classifies the live test image by Cargo target/debug layout",
       "rustc_env": {
         "CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx"
       },
       "env": {
-        "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"
+        "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)",
+        "AGX_BAZEL_CARGO_LAYOUT": "1"
       }
     },
     "//crates/pa-cli:test__daemon_commands_e2e": {
@@ -375,6 +377,12 @@
         "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"
       }
     },
+    "//crates/pa-cli:test__kitty_release_handoff_e2e": {
+      "tags": [
+        "exclusive"
+      ],
+      "reason": "crates/pa-cli/tests/kitty_release_handoff_e2e.rs:118-121 and terminal_state_differential_e2e/harness.rs:131-135 answer a live PTY probe within vendor/crossterm/src/terminal/sys/unix.rs:242-252 (250 ms); avoid competing Bazel actions during the handshake"
+    },
     "//crates/pa-cli:test__lock_compat_e2e": {
       "compile_data": [
         "//crates/agx-settings:tests/lock_compat.rs"
@@ -449,12 +457,14 @@
         "//crates/pa-cli:agx"
       ],
       "kernel": true,
-      "reason": "crates/pa-cli/tests/print_inline_subagents_e2e.rs:73; crates/pa-cli/tests/print_inline_subagents_e2e.rs:70 reads compiled binary path; crates/pa-cli/tests/print_inline_subagents_e2e.rs:41 reads kernel interpreter",
+      "reason": "crates/pa-cli/tests/print_inline_subagents_e2e.rs:73; crates/pa-cli/tests/print_inline_subagents_e2e.rs:70 reads compiled binary path; crates/pa-cli/tests/print_inline_subagents_e2e.rs:41 reads kernel interpreter; fixed runfiles source root survives child cwd changes",
       "rustc_env": {
-        "CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx"
+        "CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx",
+        "CARGO_MANIFEST_DIR": "/tmp/agx-bazel-src/crates/pa-cli"
       },
       "env": {
-        "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"
+        "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)",
+        "AGX_BAZEL_SOURCE_ROOT": "1"
       }
     },
     "//crates/pa-cli:test__print_runtime_e2e": {
@@ -536,6 +546,12 @@
         "AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"
       }
     },
+    "//crates/pa-cli:test__termios_process_exit_e2e": {
+      "tags": [
+        "exclusive"
+      ],
+      "reason": "crates/pa-cli/tests/kitty_release_handoff_e2e.rs:118-121 and terminal_state_differential_e2e/harness.rs:131-135 answer a live PTY probe within vendor/crossterm/src/terminal/sys/unix.rs:242-252 (250 ms); avoid competing Bazel actions during the handshake"
+    },
     "//crates/pa-cli:test__view_switch_latency_e2e": {
       "data": [
         "//crates/pa-cli:agx"
@@ -572,9 +588,13 @@
         "//crates/agx-settings:tests/consent_generation.rs"
       ],
       "data": [
-        "//:core_test_fixtures"
+        "//:core_test_fixtures",
+        "//:bundled_skills"
       ],
-      "reason": "crates/pa-core/src/tools/golden_replay.rs:24 and src/session_engine/tests.rs:916-917; crates/pa-core/src/agent_traces/continuous.rs:1073 includes consent generation tests"
+      "reason": "crates/pa-core/src/tools/golden_replay.rs:24 and src/session_engine/tests.rs:916-917; crates/pa-core/src/agent_traces/continuous.rs:1073 includes consent generation tests; src/kernel/provisioner.rs:1383-1408 requires bundled websearch discovery",
+      "env": {
+        "AGX_BAZEL_PACKAGE": "1"
+      }
     },
     "//crates/pa-core:pa_core": {
       "compile_data": [
@@ -617,7 +637,13 @@
       "data": [
         "//crates/pa-core:tests/fixtures/protocol_caps_kernel.py"
       ],
-      "reason": "crates/pa-core/tests/kernel_protocol_frame_caps.rs:31-32"
+      "reason": "crates/pa-core/tests/kernel_protocol_frame_caps.rs:31-32; fixed runfiles source root survives child cwd changes",
+      "rustc_env": {
+        "CARGO_MANIFEST_DIR": "/tmp/agx-bazel-src/crates/pa-core"
+      },
+      "env": {
+        "AGX_BAZEL_SOURCE_ROOT": "1"
+      }
     },
     "//crates/pa-core:test__kernel_python_skills_unavailable": {
       "kernel": true,
@@ -654,7 +680,13 @@
       "data": [
         "//:release_inputs"
       ],
-      "reason": "crates/pa-core/tests/release_channel_manifest.rs:78,611"
+      "reason": "crates/pa-core/tests/release_channel_manifest.rs:78,611; fixed runfiles source root survives child cwd changes",
+      "rustc_env": {
+        "CARGO_MANIFEST_DIR": "/tmp/agx-bazel-src/crates/pa-core"
+      },
+      "env": {
+        "AGX_BAZEL_SOURCE_ROOT": "1"
+      }
     },
     "//crates/pa-core:test__turn_boundary_kernel": {
       "kernel": true,
@@ -926,12 +958,13 @@
       "data": [
         "//crates/pa-daemon:pa-daemon"
       ],
-      "reason": "crates/pa-daemon/tests/hold_refusal_e2e.rs:48 reads compiled binary path",
+      "reason": "crates/pa-daemon/tests/hold_refusal_e2e.rs:48 reads compiled binary path; pa-daemon/src/hold_refusal.rs:127-139 classifies the live test image by Cargo target/debug layout",
       "rustc_env": {
         "CARGO_BIN_EXE_pa-daemon": "/tmp/agx-bazel-bin/pa-daemon"
       },
       "env": {
-        "AGX_BAZEL_DAEMON": "$(rootpath //crates/pa-daemon:pa-daemon)"
+        "AGX_BAZEL_DAEMON": "$(rootpath //crates/pa-daemon:pa-daemon)",
+        "AGX_BAZEL_CARGO_LAYOUT": "1"
       }
     },
     "//crates/pa-daemon:test__idle_passivation_e2e": {
@@ -1020,12 +1053,14 @@
         "//crates/pa-daemon:tests/fixtures/mcp_echo_server.py"
       ],
       "kernel": true,
-      "reason": "crates/pa-daemon/tests/mcp_product_path_e2e.rs:242-245; crates/pa-daemon/tests/mcp_product_path_e2e.rs:73 reads compiled binary path; crates/pa-daemon/tests/mcp_product_path_e2e.rs:48 reads kernel interpreter",
+      "reason": "crates/pa-daemon/tests/mcp_product_path_e2e.rs:242-245; crates/pa-daemon/tests/mcp_product_path_e2e.rs:73 reads compiled binary path; crates/pa-daemon/tests/mcp_product_path_e2e.rs:48 reads kernel interpreter; fixed runfiles source root survives child cwd changes",
       "rustc_env": {
-        "CARGO_BIN_EXE_pa-daemon": "/tmp/agx-bazel-bin/pa-daemon"
+        "CARGO_BIN_EXE_pa-daemon": "/tmp/agx-bazel-bin/pa-daemon",
+        "CARGO_MANIFEST_DIR": "/tmp/agx-bazel-src/crates/pa-daemon"
       },
       "env": {
-        "AGX_BAZEL_DAEMON": "$(rootpath //crates/pa-daemon:pa-daemon)"
+        "AGX_BAZEL_DAEMON": "$(rootpath //crates/pa-daemon:pa-daemon)",
+        "AGX_BAZEL_SOURCE_ROOT": "1"
       }
     },
     "//crates/pa-daemon:test__model_catalog_e2e": {

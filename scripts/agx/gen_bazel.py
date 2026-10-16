@@ -167,15 +167,17 @@ def generate(metadata: Mapping, overrides: Mapping,
                         if attr != "rustc_env":
                             attrs[attr] = starlark(override[attr])
                 if is_test:
-                    tags = ["block-network"]
+                    tags = ["block-network", *override.get("tags", [])]
                     if override.get("kernel"):
                         tags.append("agx-kernel")
                         data = list(override.get("data", []))
-                        data.append("//:bazel_kernel_python")
-                        attrs["data"] = starlark(data)
+                        data.extend(["//:bazel_kernel_python",
+                                     "//:bundled_skills"])
+                        attrs["data"] = starlark(list(dict.fromkeys(data)))
                         env = dict(override.get("env", {}))
                         env.update({
                             "AGX_BAZEL_KERNEL": "1",
+                            "AGX_BAZEL_PACKAGE": "1",
                             "AGX_BAZEL_KERNEL_PREFIX":
                                 "$(rootpath //:bazel_kernel_python)",
                         })
