@@ -128,6 +128,25 @@ class SeamChecks(unittest.TestCase):
             self.repo, base, self.ledger,
         ), (["prime-agent-runtime/test/test_factory.py"], [], 1))
 
+    def test_build_bazel_in_upstream_crate_is_fork_owned(self):
+        path = self.repo / "crates/pa-core/BUILD.bazel"
+        path.parent.mkdir(parents=True)
+        path.write_text("# fork-owned\n")
+        self.git("add", "crates/pa-core/BUILD.bazel")
+        self.assertEqual(check_seams.check(
+            self.repo, self.base, self.ledger,
+        ), ([], [], 0))
+
+    def test_bazel_root_files_are_fork_owned(self):
+        for name in ("MODULE.bazel", "MODULE.bazel.lock", ".bazelrc",
+                     ".bazelversion", "agx.just", "BUILD.bazel"):
+            with self.subTest(name=name):
+                (self.repo / name).write_text("# fork-owned\n")
+                self.git("add", name)
+                self.assertEqual(check_seams.check(
+                    self.repo, self.base, self.ledger,
+                ), ([], [], 0))
+
     def test_duplicate_row_is_rejected(self):
         self.write_rows(["one.rs", "one.rs"])
         with self.assertRaisesRegex(ValueError, "Duplicate"):

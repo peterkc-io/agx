@@ -52,6 +52,9 @@ jobs:
     uses: ./.github/workflows/agx-ci.yml
     with:
       merge-upstream: ${{ needs.sync.outputs.head }}
+    secrets:
+      BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      BUILDBUDDY_API_KEY_RO: ${{ secrets.BUILDBUDDY_API_KEY_RO }}
 
   status:
     needs: [sync, gates]

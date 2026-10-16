@@ -11,6 +11,11 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 FORK_OWNED_FILES = {
+    "MODULE.bazel",
+    "MODULE.bazel.lock",
+    ".bazelrc",
+    ".bazelversion",
+    "agx.just",
     ".github/AGX_VOUCHED.td",
     ".github/README.md",
     "prime-agent-runtime/test/test_agx_settings.py",
@@ -22,6 +27,7 @@ FORK_OWNED_PATTERN = re.compile(r"crates/agx-[^/]*/.+|\.github/workflows/agx-[^/
 def fork_owned(name):
     return (
         name in FORK_OWNED_FILES
+        or Path(name).name == "BUILD.bazel"
         or name.startswith(FORK_OWNED_DIRS)
         or FORK_OWNED_PATTERN.fullmatch(name) is not None
     )
