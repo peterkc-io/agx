@@ -45,7 +45,7 @@ def run_test(command: Sequence[str], source_env: Mapping[str, str]) -> int:
         for _ in range(16):
             home = (Path("/tmp") / uuid.uuid4().hex[:4]).resolve()
             try:
-                home.mkdir()
+                home.mkdir(mode=0o700)
                 break
             except FileExistsError:
                 continue
