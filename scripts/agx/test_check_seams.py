@@ -212,6 +212,7 @@ class SeamChecks(unittest.TestCase):
         self.assertIn("Missing seam row: two.rs", errors)
 
     def test_upstream_merge_base_failure_is_visible(self):
+        self.stack_git("commit", "--quiet", "-m", "fork base")
         output, errors = io.StringIO(), io.StringIO()
         with redirect_stdout(output), redirect_stderr(errors):
             code = check_seams.main([
@@ -219,7 +220,9 @@ class SeamChecks(unittest.TestCase):
                 "--upstream", "missing-upstream",
             ])
         self.assertEqual(code, 1)
-        self.assertIn("Seam check failed: git merge-base failed:", errors.getvalue())
+        error = errors.getvalue()
+        self.assertIn("Seam check failed: git merge-base failed:", error)
+        self.assertIn("missing-upstream", error)
 
     def test_explicit_base_and_upstream_are_mutually_exclusive(self):
         with redirect_stderr(io.StringIO()):
