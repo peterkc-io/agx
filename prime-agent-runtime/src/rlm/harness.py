@@ -26,7 +26,7 @@ from pathlib import Path
 from uuid import uuid4
 from typing import Any, Literal
 
-from .factory import require_factory_enabled, validate_factory_spec
+from .factory import _merge_settings_patch, require_factory_enabled, validate_factory_spec
 
 if sys.platform == "darwin":
     import fcntl
@@ -138,7 +138,14 @@ def _require_refinements_enabled() -> None:
     try:
         document = json.loads((_agent_dir() / "settings.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return
+        document = {}
+    # agx saves global settings to the settings-agx.json overlay (FR-018).
+    try:
+        overlay = json.loads((_agent_dir() / "settings-agx.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    else:
+        document = _merge_settings_patch(document, overlay)
     value = document.get("harnessRefinements") if isinstance(document, dict) else None
     if value is False:
         raise RuntimeError("Harness refinements are disabled in /settings")

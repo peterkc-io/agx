@@ -159,6 +159,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/src/settings/mod.rs` | Export the CLI global overlay-storage boundary. | AC-008 real MCP command tests. |
 | `crates/pa-cli/src/mcp_command.rs` | Read effective global JSON and adapt the existing mutation callback to changed overlay paths, including inherited removal. | AC-008 add/get/list/replace/remove and malformed refusal. |
 | `prime-agent-runtime/src/rlm/factory.py` | Apply the stdlib RFC 7396 overlay before factory.enabled; support a missing base and retain unreadable-base refusal. | AC-028 kernel overlay tests; upstream factory/harness tests. |
+| `prime-agent-runtime/src/rlm/harness.py` | `_require_refinements_enabled` applies the `settings-agx.json` overlay before it reads `harnessRefinements`, as `factory_enabled` does (FR-018, FR-043). | test_agx_settings.py `AgxHarnessRefinements`; upstream test_harness.py. |
 | `crates/pa-core/src/packages/manager.rs` | Read global-write assertions from the overlay; assert project installs create neither global document. | Package unit tests; unchanged project path. |
 | `crates/pa-cli/src/client_settings.rs` | Read persisted client-setting assertions from the overlay without removing any assertions. | Client-settings unit tests. |
 | `crates/pa-core/src/refinement/mod.rs` | factory gate reads the agx overlay like the kernel (FR-043) | refinement factory_enabled overlay tests; test_agx_settings.py |

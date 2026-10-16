@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from rlm import factory
+from rlm.harness import _require_refinements_enabled
 
 
 class AgxSettings(unittest.TestCase):
@@ -112,6 +113,53 @@ class AgxSettings(unittest.TestCase):
         self.base.rmdir()
         self.base.write_text('{ invalid\n')
         self.check_gate(False)
+
+
+class AgxHarnessRefinements(unittest.TestCase):
+    """The kernel's harnessRefinements switch reads the overlay agx saves."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.agent = Path(temporary.name)
+        self.base = self.agent / "settings.json"
+        self.overlay = self.agent / "settings-agx.json"
+        environment = patch.dict(
+            os.environ,
+            {"PRIME_AGENT_CODING_AGENT_DIR": str(self.agent)},
+        )
+        environment.start()
+        self.addCleanup(environment.stop)
+
+    def check_enabled(self, expected):
+        if expected:
+            _require_refinements_enabled()
+        else:
+            with self.assertRaisesRegex(RuntimeError, "disabled"):
+                _require_refinements_enabled()
+
+    def test_overlay_switch_wins_over_the_base(self):
+        self.base.write_text('{"harnessRefinements":true}\n')
+        self.overlay.write_text('{"harnessRefinements":false}\n')
+        self.check_enabled(False)
+        self.base.write_text('{"harnessRefinements":false}\n')
+        self.overlay.write_text('{"harnessRefinements":true}\n')
+        self.check_enabled(True)
+
+    def test_base_alone_and_overlay_null(self):
+        self.base.write_text('{"harnessRefinements":false}\n')
+        self.check_enabled(False)
+        self.overlay.write_text('{"harnessRefinements":null}\n')
+        self.check_enabled(True)
+
+    def test_unreadable_files_leave_the_switch_on_unless_the_overlay_says_off(self):
+        self.base.write_text("{ invalid\n")
+        self.check_enabled(True)
+        self.overlay.write_text('{"harnessRefinements":false}\n')
+        self.check_enabled(False)
+        self.base.write_text('{"harnessRefinements":false}\n')
+        self.overlay.write_text("{ invalid\n")
+        self.check_enabled(False)
 
 
 if __name__ == "__main__":
