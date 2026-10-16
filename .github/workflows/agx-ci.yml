@@ -317,7 +317,7 @@ jobs:
 
   test-summary:
     name: test summary
-    needs: [candidate, test-shard]
+    needs: [candidate, changes, test-shard]
     if: always() && needs.candidate.result == 'success'
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
@@ -354,8 +354,15 @@ jobs:
           path: manifests
       - name: Audit the shards and merge their failure reports
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
           SHARD_RESULT: ${{ needs.test-shard.result }}
         run: |
+          # A failed selection skips every shard; name it before the audit
+          # reports the missing manifests.
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "::error::The crate selection job did not pass (result: $CHANGES_RESULT); no shard ran"
+            exit 1
+          fi
           python3 scripts/test_ci_test_shard.py
           python3 scripts/test_ci_pr_crates.py
           python3 scripts/test_ci_test_shard_summary.py
