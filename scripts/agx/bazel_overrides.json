@@ -1,0 +1,901 @@
+{
+  "filegroups": {
+    "bundled_skills": {
+      "patterns": [
+        "skills/*",
+        "skills/**"
+      ],
+      "reason": "crates/pa-core/tests/prompt_guards.rs:28-32 and pa-cli/tests/print_inline_subagents_e2e.rs:73 read bundled skills"
+    },
+    "core_sources": {
+      "patterns": [
+        "crates/pa-core/src/*.rs",
+        "crates/pa-core/src/**/*.rs"
+      ],
+      "reason": "crates/pa-core/tests/prompt_guards.rs:216 traverses core sources"
+    },
+    "core_test_fixtures": {
+      "patterns": [
+        "crates/pa-core/tests/fixtures/mcp/*",
+        "crates/pa-core/tests/golden/corpus/*"
+      ],
+      "reason": "crates/pa-core/src/mcp/catalog_schema.rs:567 and tools/golden_replay.rs:24 read catalog and golden corpus"
+    },
+    "embedded_core": {
+      "patterns": [
+        "crates/pa-core/assets/export-html/*",
+        "crates/pa-core/assets/export-html/vendor/*",
+        "crates/pa-core/src/prompts/layers/*",
+        "install-rust.sh"
+      ],
+      "reason": "crates/pa-core/src/export_html/mod.rs:30-34, prompts/layers.rs:4-6, prompts/model_prompts.rs:12-16 and update/installer.rs:50 embed assets"
+    },
+    "embedded_types": {
+      "patterns": [
+        "crates/pa-types/themes/*.json"
+      ],
+      "reason": "crates/pa-types/src/themes.rs:10-12 embeds bundled themes"
+    },
+    "installer_inputs": {
+      "patterns": [
+        "install-rust.sh",
+        "install.ps1",
+        "scripts/release/test_windows_install.ps1",
+        "scripts/release/test_windows_channel_fallback.ps1"
+      ],
+      "reason": "crates/pa-cli/tests/installer_platform_map.rs:32,162,820 reads installers and Windows harness; :852-861 reads channel fallback harness"
+    },
+    "packaging_inputs": {
+      "patterns": [
+        "scripts/package_release.py",
+        "scripts/release/*",
+        "scripts/release/**",
+        "README.md"
+      ],
+      "reason": "crates/pa-cli/tests/packaged_layout_e2e.rs:82-88 copies README.md and :685-699 invokes scripts/package_release.py and its release imports"
+    },
+    "release_inputs": {
+      "patterns": [
+        "scripts/release/*",
+        "scripts/release/**",
+        ".github/workflows/release.yml",
+        "install-rust.sh",
+        "install.ps1",
+        "Cargo.toml"
+      ],
+      "reason": "crates/pa-cli/tests/release_workflow.rs:117,174,237-256 and pa-core/tests/release_channel_manifest.rs:78,611 read release workflow, scripts and installers; pa-cli/tests/release_workflow.rs:603 reads root Cargo.toml"
+    },
+    "runtime_sources": {
+      "patterns": [
+        "prime-agent-runtime/*",
+        "prime-agent-runtime/**"
+      ],
+      "reason": "crates/pa-core/src/kernel/bootstrap/venv/runtime_source.rs:49-85 hashes runtime sources and package data; includes lockfile"
+    },
+    "triage_inputs": {
+      "patterns": [
+        ".github/workflows/windows-runtime-triage.yml",
+        "crates/pa-cli/tests/windows_runtime_triage_e2e.rs"
+      ],
+      "reason": "crates/pa-cli/tests/windows_runtime_triage_workflow.rs:47,97 reads workflow and battery source"
+    },
+    "tui_fixtures": {
+      "patterns": [
+        "crates/pa-tui/tests/fixtures/ascii-wrap-golden.json",
+        "crates/pa-tui/tests/golden/preview.json",
+        "install-rust.sh"
+      ],
+      "reason": "crates/pa-tui/src/editor/wrap.rs:752 embeds wrap fixture, code_preview/golden_tests.rs:8 reads preview corpus and onboarding.rs:878 embeds installer"
+    },
+    "types_data": {
+      "patterns": [
+        "crates/pa-types/tests/data/*"
+      ],
+      "reason": "crates/pa-types/tests/session_jsonl_roundtrip.rs:58 and daemon_wire_roundtrip.rs:27 read all test data"
+    }
+  },
+  "targets": {
+    "//crates/pa-ai:lib_test__pa_ai": {
+      "data": [
+        "//crates/pa-ai:tests/testdata/prime_inference_glm53_flash.sse"
+      ],
+      "reason": "crates/pa-ai/src/utils_inner/sse.rs:147-151"
+    },
+    "//crates/pa-cli:test__acp_config_option_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/acp_config_option_e2e.rs:206 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__acp_mode_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-cli/tests/acp_mode_e2e.rs:221 reads compiled binary path; crates/pa-cli/tests/acp_mode_e2e.rs:2153 reads kernel interpreter"
+    },
+    "//crates/pa-cli:test__agents_view_anchor_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/agents_view_anchor_e2e.rs:82 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__agents_view_flash_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/agents_view_flash_e2e.rs:82 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__agents_view_refusal_panel_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/agents_view_refusal_panel_e2e.rs:41 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__agents_view_reply_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/agents_view_reply_e2e.rs:76 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__agents_view_search_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/agents_view_search_e2e.rs:84 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__agents_view_subagents_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/agents_view_subagents_e2e.rs:82 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__agx_settings": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/agx-settings/tests/cli.rs:29 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__chat_agents_chat_roundtrip_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/chat_agents_chat_roundtrip_e2e.rs:76 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__clipboard_auth_commands_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/clipboard_auth_commands_e2e.rs:128 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__continue_guard_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/continue_guard_e2e.rs:41 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__daemon_commands_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/daemon_commands_e2e.rs:70 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__daemon_discovery_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/daemon_discovery_e2e.rs:45 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__differential_cli": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/differential_cli.rs:460 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__dock_scope_exit_focus_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/dock_scope_exit_focus_e2e.rs:85 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__eval_composition_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/eval_composition_e2e.rs:29 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__export_live_differential": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/export_live_differential.rs:392 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__export_share_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/export_share_e2e.rs:128 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__installer_platform_map": {
+      "data": [
+        "//:installer_inputs"
+      ],
+      "reason": "crates/pa-cli/tests/installer_platform_map.rs:32,162,820"
+    },
+    "//crates/pa-cli:test__installer_update_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/fork/updates.rs:12 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__interactive_daemon_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/interactive_daemon_e2e.rs:351 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__interactive_fork_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/interactive_fork_e2e.rs:176 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__lock_compat_e2e": {
+      "compile_data": [
+        "//crates/agx-settings:tests/lock_compat.rs"
+      ],
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/lock_compat_e2e.rs:254 reads compiled binary path; crates/pa-cli/tests/lock_compat_e2e.rs:26 includes cross-crate overlay tests"
+    },
+    "//crates/pa-cli:test__mcp_view_e2e": {
+      "data": [
+        "//crates/pa-cli:agx",
+        "//crates/pa-daemon:tests/fixtures/mcp_echo_server.py"
+      ],
+      "reason": "crates/pa-cli/tests/mcp_view_e2e.rs:29-32; crates/pa-cli/tests/mcp_view_e2e.rs:184 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__package_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/package_e2e.rs:497 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__package_resources_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/package_resources_e2e.rs:61 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__packaged_layout_e2e": {
+      "data": [
+        "//:bundled_skills",
+        "//:packaging_inputs",
+        "//:runtime_sources",
+        "//crates/pa-cli:agx"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-cli/tests/packaged_layout_e2e.rs:93-94,685-782; crates/pa-cli/tests/packaged_layout_e2e.rs:72 reads compiled binary path; crates/pa-cli/tests/packaged_layout_e2e.rs:138 reads kernel interpreter"
+    },
+    "//crates/pa-cli:test__print_inline_subagents_e2e": {
+      "data": [
+        "//:bundled_skills",
+        "//crates/pa-cli:agx"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-cli/tests/print_inline_subagents_e2e.rs:73; crates/pa-cli/tests/print_inline_subagents_e2e.rs:70 reads compiled binary path; crates/pa-cli/tests/print_inline_subagents_e2e.rs:41 reads kernel interpreter"
+    },
+    "//crates/pa-cli:test__print_runtime_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/print_runtime_e2e.rs:21 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__release_workflow": {
+      "data": [
+        "//:release_inputs",
+        "//:runtime_sources"
+      ],
+      "reason": "crates/pa-cli/tests/release_workflow.rs:117,174,237-256"
+    },
+    "//crates/pa-cli:test__rpc_mode_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/rpc_mode_e2e.rs:53 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__settings_mcp_save": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/settings_mcp_save.rs:22 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__subagent_panel_nav_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/subagent_panel_nav_e2e.rs:82 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__subagent_panel_nested_count_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/subagent_panel_nested_count_e2e.rs:50 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__telemetry_command_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/telemetry_command_e2e.rs:9 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__view_switch_latency_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/view_switch_latency_e2e.rs:91 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__windows_runtime_triage_e2e": {
+      "data": [
+        "//crates/pa-cli:agx"
+      ],
+      "reason": "crates/pa-cli/tests/windows_runtime_triage_e2e.rs:131 reads compiled binary path"
+    },
+    "//crates/pa-cli:test__windows_runtime_triage_workflow": {
+      "data": [
+        "//:triage_inputs"
+      ],
+      "reason": "crates/pa-cli/tests/windows_runtime_triage_workflow.rs:47"
+    },
+    "//crates/pa-core:lib_test__pa_core": {
+      "compile_data": [
+        "//:core_test_fixtures",
+        "//crates/agx-settings:tests/consent_generation.rs"
+      ],
+      "data": [
+        "//:core_test_fixtures"
+      ],
+      "reason": "crates/pa-core/src/tools/golden_replay.rs:24 and src/session_engine/tests.rs:916-917; crates/pa-core/src/agent_traces/continuous.rs:1073 includes consent generation tests"
+    },
+    "//crates/pa-core:pa_core": {
+      "compile_data": [
+        "//:embedded_core",
+        "//crates/agx-settings:src/manager.rs"
+      ],
+      "data": [
+        "//:runtime_sources",
+        "//:bundled_skills"
+      ],
+      "reason": "crates/pa-core/src/export_html/mod.rs:30-34; src/prompts/layers.rs:4-6; src/update/installer.rs:50; crates/pa-core/src/settings/manager.rs:16 includes overlay manager source"
+    },
+    "//crates/pa-core:test__abort_kernel_cell": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/abort_kernel_cell.rs:27 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__agx_settings": {
+      "compile_data": [
+        "//crates/agx-settings:tests/factory_cases.json"
+      ],
+      "reason": "crates/agx-settings/tests/manager.rs:304"
+    },
+    "//crates/pa-core:test__kernel_capture_freshness": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_capture_freshness.rs:19 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_lifecycle": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_lifecycle.rs:33 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_mcp_settle": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_mcp_settle.rs:49 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_prewarm": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_prewarm.rs:34 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_protocol_frame_caps": {
+      "data": [
+        "//crates/pa-core:tests/fixtures/protocol_caps_kernel.py"
+      ],
+      "reason": "crates/pa-core/tests/kernel_protocol_frame_caps.rs:31-32"
+    },
+    "//crates/pa-core:test__kernel_python_skills_unavailable": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_python_skills_unavailable.rs:37 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_restore_guards": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_restore_guards.rs:29 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_snapshot_resume": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_snapshot_resume.rs:38 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_startup_memo": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_startup_memo.rs:50 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_stop_revive": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_stop_revive.rs:32 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__kernel_teardown": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/kernel_teardown.rs:33 reads kernel interpreter"
+    },
+    "//crates/pa-core:test__prompt_guards": {
+      "data": [
+        "//:bundled_skills",
+        "//:core_sources"
+      ],
+      "reason": "crates/pa-core/tests/prompt_guards.rs:28-32,216"
+    },
+    "//crates/pa-core:test__release_channel_manifest": {
+      "data": [
+        "//:release_inputs"
+      ],
+      "reason": "crates/pa-core/tests/release_channel_manifest.rs:78,611"
+    },
+    "//crates/pa-core:test__turn_boundary_kernel": {
+      "kernel": true,
+      "reason": "crates/pa-core/tests/turn_boundary_kernel.rs:30 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:lib_test__pa_daemon": {
+      "data": [
+        "//crates/pa-daemon:tests/fixtures/attribution-fold-captured.jsonl"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/src/session_stats/tests.rs:10-11; src/state_getters/state_getters_tests.rs:192-193; crates/pa-daemon/src/agent_engine/tests/abort.rs:501-503 reads legacy kernel venv"
+    },
+    "//crates/pa-daemon:test__abort_kernel_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/abort_kernel_e2e.rs:79 reads compiled binary path; crates/pa-daemon/tests/abort_kernel_e2e.rs:19 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__agent_family_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/agent_family_e2e.rs:81 reads compiled binary path; crates/pa-daemon/tests/agent_family_e2e.rs:208 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__agents_view_roster_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/agents_view_roster_e2e.rs:45 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__autonomous_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/autonomous_e2e.rs:30 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__close_listener_cleanup_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/close_listener_cleanup_e2e.rs:145 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__command_dispatch_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/command_dispatch_e2e.rs:152 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__compaction_abort_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/compaction_abort_e2e.rs:221 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__compaction_completion_stall_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/compaction_completion_stall_e2e.rs:429 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__compaction_mega_trace_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/compaction_mega_trace_e2e.rs:216 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__compaction_outcome_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/compaction_outcome_e2e.rs:226 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__compaction_summary_stream_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/compaction_summary_stream_e2e.rs:233 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__context_latency_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/context_latency_e2e.rs:62 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__create_join_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/create_join_e2e.rs:49 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__create_reuse_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/create_reuse_e2e.rs:32 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__daemon_boot_reap_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/daemon_boot_reap_e2e.rs:31 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__direct_attach_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/direct_attach_e2e.rs:46 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__fd_lifecycle_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/fd_lifecycle_e2e.rs:69 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__fork_isolation_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/fork_isolation_e2e.rs:43 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__goal_branch_reload_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/goal_branch_reload_e2e.rs:34 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__goal_recovery_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/goal_recovery_e2e.rs:50 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__herdr_pane_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/herdr_pane_e2e.rs:87 reads compiled binary path; crates/pa-daemon/tests/herdr_pane_e2e.rs:54 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__hold_refusal_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/hold_refusal_e2e.rs:48 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__idle_passivation_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/idle_passivation_e2e.rs:47 reads compiled binary path; crates/pa-daemon/tests/idle_passivation_e2e.rs:130 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__import_compaction_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/import_compaction_e2e.rs:47 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__kernel_dispose_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/kernel_dispose_e2e.rs:131 reads compiled binary path; crates/pa-daemon/tests/kernel_dispose_e2e.rs:28 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__kernel_harness_env_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/kernel_harness_env_e2e.rs:55 reads compiled binary path; crates/pa-daemon/tests/kernel_harness_env_e2e.rs:18 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__launch_env_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/launch_env_e2e.rs:83 reads compiled binary path; crates/pa-daemon/tests/launch_env_e2e.rs:52 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__mcp_catalog_e2e": {
+      "compile_data": [
+        "//crates/pa-core:tests/fixtures/mcp/plugins-catalog.v2.json"
+      ],
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/mcp_catalog_e2e.rs:199; crates/pa-daemon/tests/mcp_catalog_e2e.rs:77 reads compiled binary path; crates/pa-daemon/tests/mcp_catalog_e2e.rs:48 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__mcp_product_path_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon",
+        "//crates/pa-daemon:tests/fixtures/mcp_echo_server.py"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/mcp_product_path_e2e.rs:242-245; crates/pa-daemon/tests/mcp_product_path_e2e.rs:73 reads compiled binary path; crates/pa-daemon/tests/mcp_product_path_e2e.rs:48 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__model_catalog_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/model_catalog_e2e.rs:30 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__orphan_journal_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/orphan_journal_e2e.rs:70 reads compiled binary path; crates/pa-daemon/tests/orphan_journal_e2e.rs:43 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__peer_messaging_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/peer_messaging_e2e.rs:55 reads compiled binary path; crates/pa-daemon/tests/peer_messaging_e2e.rs:31 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__protocol_breadth_b10_b11": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/protocol_breadth_b10_b11.rs:49 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__protocol_breadth_b6_b9": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/protocol_breadth_b6_b9.rs:31 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__provider_failover_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/provider_failover_e2e.rs:179 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__provider_failure_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/provider_failure_e2e.rs:207 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__queue_delivery_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/queue_delivery_e2e.rs:275 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__readoption_wake_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/readoption_wake_e2e.rs:76 reads compiled binary path; crates/pa-daemon/tests/readoption_wake_e2e.rs:50 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__recovery_control_plane_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/recovery_control_plane_e2e.rs:44 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__registration_refusal_heal_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/registration_refusal_heal_e2e.rs:37 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__replacement_kernel_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/replacement_kernel_e2e.rs:151 reads compiled binary path; crates/pa-daemon/tests/replacement_kernel_e2e.rs:33 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__rlm_child_usage_attribution_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/rlm_child_usage_attribution_e2e.rs:33 reads compiled binary path; crates/pa-daemon/tests/rlm_child_usage_attribution_e2e.rs:59 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__rlm_children_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/rlm_children_e2e.rs:55 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__rlm_children_parent_death_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/rlm_children_parent_death_e2e.rs:52 reads compiled binary path; crates/pa-daemon/tests/rlm_children_parent_death_e2e.rs:82 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__rlm_children_replacement_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/rlm_children_replacement_e2e.rs:51 reads compiled binary path; crates/pa-daemon/tests/rlm_children_replacement_e2e.rs:82 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__rlm_quiescence_barrier_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/rlm_quiescence_barrier_e2e.rs:32 reads compiled binary path; crates/pa-daemon/tests/rlm_quiescence_barrier_e2e.rs:64 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__rlm_roster_walk_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/rlm_roster_walk_e2e.rs:53 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__rlm_spawn_replacement_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/rlm_spawn_replacement_e2e.rs:54 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__saved_catalog_stream_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/saved_catalog_stream_e2e.rs:48 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__saved_session_wake_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/saved_session_wake_e2e.rs:115 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__session_archive_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/session_archive_e2e.rs:113 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__session_rebind_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/session_rebind_e2e.rs:49 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__session_stop_lifecycle_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/session_stop_lifecycle_e2e.rs:52 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__session_tree_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/session_tree_e2e.rs:49 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__socket_identity_guard_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/socket_identity_guard_e2e.rs:135 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__stale_lease_release_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/stale_lease_release_e2e.rs:34 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__startup_no_auto_resume_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/startup_no_auto_resume_e2e.rs:109 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__steer_boundary_batch_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "kernel": true,
+      "reason": "crates/pa-daemon/tests/steer_boundary_batch_e2e.rs:103 reads compiled binary path; crates/pa-daemon/tests/steer_boundary_batch_e2e.rs:38 reads kernel interpreter"
+    },
+    "//crates/pa-daemon:test__stop_escalation_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/stop_escalation_e2e.rs:52 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__supervisor_e2e": {
+      "compile_data": [
+        "//crates/pa-daemon:tests/goldens/compaction-live-ts.json",
+        "//crates/pa-daemon:tests/goldens/chunked-attach-live-ts.json"
+      ],
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/supervisor_e2e/compaction.rs:16 and attach.rs:106; crates/pa-daemon/tests/supervisor_e2e/main.rs:67 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__supervisor_restart_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/supervisor_restart_e2e/main.rs:52 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__thinking_level_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/thinking_level_e2e.rs:138 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__thinking_level_roster_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/thinking_level_roster_e2e.rs:50 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__worker_orphan_exit_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/worker_orphan_exit_e2e.rs:37 reads compiled binary path"
+    },
+    "//crates/pa-daemon:test__worker_stderr_e2e": {
+      "data": [
+        "//crates/pa-daemon:pa-daemon"
+      ],
+      "reason": "crates/pa-daemon/tests/worker_stderr_e2e.rs:32 reads compiled binary path"
+    },
+    "//crates/pa-models:test__parity": {
+      "compile_data": [
+        "//crates/pa-models:tests/fixtures/catalog.v1.json"
+      ],
+      "reason": "crates/pa-models/tests/parity.rs:11"
+    },
+    "//crates/pa-tui:lib_test__pa_tui": {
+      "compile_data": [
+        "//:tui_fixtures"
+      ],
+      "data": [
+        "//:tui_fixtures"
+      ],
+      "reason": "crates/pa-tui/src/editor/wrap.rs:752; src/code_preview/golden_tests.rs:8; src/onboarding.rs:878"
+    },
+    "//crates/pa-types:pa_types": {
+      "compile_data": [
+        "//:embedded_types"
+      ],
+      "reason": "crates/pa-types/src/themes.rs:10-12"
+    },
+    "//crates/pa-types:test__daemon_wire_roundtrip": {
+      "data": [
+        "//:types_data"
+      ],
+      "reason": "crates/pa-types/tests/daemon_wire_roundtrip.rs:27-58"
+    },
+    "//crates/pa-types:test__session_jsonl_roundtrip": {
+      "data": [
+        "//:types_data"
+      ],
+      "reason": "crates/pa-types/tests/session_jsonl_roundtrip.rs:27-58"
+    }
+  }
+}
