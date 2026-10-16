@@ -172,6 +172,14 @@ Any other change to a new upstream test file needs the user's decision. Search
 new test files for `kernel-venv/`: a test that cannot find its interpreter often
 returns early and still reports "passed".
 
+**Bazel files:** after a sync merge, regenerate the first-party BUILD files
+from Cargo metadata and the fork overrides, then commit the result:
+
+```sh
+just -f agx.just bazel-gen
+just -f agx.just bazel-check
+```
+
 **SEAMS.md:** add, change or remove rows so the ledger matches the result.
 Every changed file outside the fork-owned paths needs a row. In its Reason cell,
 name the touched function or item and the reason. Remove rows for unchanged files.
@@ -265,8 +273,8 @@ commits, and each layer must pass CI on its own.
    `candidate` job and dependent jobs are skipped. GitHub counts skipped jobs as
    passing for required checks and merging. A base change keeps the same head
    SHA, so an older run on the old base can also look like a pass. Use only a run
-   that started after the lower layer merged and whose `candidate`, lint,
-   test shards, test summary and release jobs ran:
+   that started after the lower layer merged and whose `candidate`, lint and
+   every job selected by `AGX_CI_ENGINE` ran:
 
    ```sh
    gh run list -R peterkc-io/agx --workflow agx-ci.yml --branch <layer branch> \
@@ -275,8 +283,8 @@ commits, and each layer must pass CI on its own.
    ```
 
    Its `createdAt` must be later than the lower layer's merge time, and its
-   `candidate`, lint, test shards, test summary and release jobs must not be
-   skipped. If no such run exists, ask the user
+   `candidate`, lint and every selected build/test job must not be skipped.
+   If no such run exists, ask the user
    before you close and reopen the PR. Reopening sends the `reopened` event,
    which starts a run.
    Read whether CodeRabbit reviewed the PR or reported it skipped. Record a skip;
@@ -365,10 +373,30 @@ These tests fail on macOS hosts and pass on Linux; Linux CI decides them:
   `kernel_startup_memo` `dispose_after_a_kill_waits_the_doomed_boot`
 - `interactive_daemon_e2e` reads `/proc` and runs only on Linux.
 
-**Fork CI (Linux).** `agx-ci.yml` runs lint (seams, formatting, Clippy and
-fork script tests), eight parallel test shards, a manifest audit and a separate
-release build. Each shard builds the workspace bins and bootstraps the kernel
-venv before its tests, unless it has no selected units.
+**Fork CI (Linux).** `agx-ci.yml` always runs lint (seams, formatting, Clippy
+and fork script tests). The repository variable `AGX_CI_ENGINE` selects the
+build and test jobs:
+
+- `bazel`: Bazel tests and an optimized Bazel build of all workspace binaries.
+  The Cargo shards, summary and release job skip.
+- `cargo`: eight Cargo test shards, their manifest audit and the Cargo release
+  build. The Bazel job skips. Use this fallback when Bazel or BuildBuddy is
+  unavailable.
+- Unset: both engines run, and both must pass.
+
+A direct manual dispatch can select `engine: cargo` or `engine: bazel`. That
+input overrides the variable. `engine: default` uses the variable. A branch named
+`wip/agx-upstream-*` always uses Cargo because plain upstream has no Bazel files.
+Each Cargo shard builds the workspace bins and bootstraps the kernel venv before
+its tests, unless it has no selected units.
+
+The Bazel job uses Linux sandboxing and a declared kernel interpreter. It creates
+an ignored checkout-local `scripts/agx/Cargo.Bazel.lock` when missing and fails
+if `Cargo.lock` changed. It uses the BuildBuddy write key only on pushes to
+`main` or `wip/**` and on sync calls. Every PR and direct manual dispatch uses
+the read-only key. A PR from another repository runs without remote caching or
+build-event upload. All other missing keys fail the job and name the secret.
+Keyed runs upload build events with the same key; remote execution stays off.
 
 The `candidate` job fixes the checked commit and tree once. For a sync call, it
 records the current `main` SHA and merges the requested upstream head into it.

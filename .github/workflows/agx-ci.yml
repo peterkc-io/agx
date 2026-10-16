@@ -1,4 +1,4 @@
-# agx fork CI: lint, eight test shards with a manifest audit, and release.
+# agx fork CI: lint plus the selected Cargo and/or Bazel engines.
 # Fork-owned (agx-*), so this workflow is not an upstream seam.
 # Runner choice: manual input, then AGX_CI_RUNNER, then ubuntu-24.04.
 name: agx-ci
@@ -17,8 +17,21 @@ on:
         required: false
         type: string
         default: ""
+    secrets:
+      BUILDBUDDY_API_KEY:
+        description: "BuildBuddy cache write key (pushes and sync calls only)"
+        required: false
+      BUILDBUDDY_API_KEY_RO:
+        description: "BuildBuddy read-only key (PRs and direct dispatches)"
+        required: false
   workflow_dispatch:
     inputs:
+      engine:
+        description: "CI engine (default: AGX_CI_ENGINE, else both engines)"
+        required: false
+        type: choice
+        default: default
+        options: [default, cargo, bazel]
       runner:
         description: "Runner label (default: the AGX_CI_RUNNER variable, else ubuntu-24.04)"
         required: false
@@ -57,6 +70,8 @@ jobs:
       main-sha: ${{ steps.revision.outputs.main-sha }}
       sha: ${{ steps.revision.outputs.sha }}
       tree: ${{ steps.candidate.outputs.tree }}
+      cargo: ${{ steps.engines.outputs.cargo }}
+      bazel: ${{ steps.engines.outputs.bazel }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -85,6 +100,23 @@ jobs:
           git fetch --no-tags origin "$MERGE_UPSTREAM"
           git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
             -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Resolve CI engines
+        id: engines
+        env:
+          ENGINE: ${{ (github.event_name == 'workflow_dispatch' && inputs.engine != '' && inputs.engine != 'default') && inputs.engine || vars.AGX_CI_ENGINE }}
+          BASELINE: ${{ (github.head_ref != '' || github.ref_type == 'branch') && startsWith(github.head_ref || github.ref_name, 'wip/agx-upstream-') }}
+        run: |
+          if [ "$BASELINE" = "true" ]; then
+            ENGINE=cargo
+          fi
+          case "$ENGINE" in
+            cargo) cargo=true; bazel=false ;;
+            bazel) cargo=false; bazel=true ;;
+            "") cargo=true; bazel=true ;;
+            *) echo "::error::AGX_CI_ENGINE must be unset, cargo or bazel"; exit 1 ;;
+          esac
+          echo "cargo=$cargo" >> "$GITHUB_OUTPUT"
+          echo "bazel=$bazel" >> "$GITHUB_OUTPUT"
       - name: Record the candidate tree
         id: candidate
         run: |
@@ -93,6 +125,7 @@ jobs:
           echo "Candidate tree: $tree"
 
   changes:
+    if: needs.candidate.outputs.cargo == 'true'
     name: touched crates (fork PR) / full selection
     needs: candidate
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
@@ -231,6 +264,7 @@ jobs:
         run: python3 -B -m unittest discover -s scripts/agx -p 'test_*.py'
 
   test-shard:
+    if: needs.candidate.outputs.cargo == 'true'
     needs: [candidate, changes]
     name: test shard ${{ matrix.shard }}/${{ strategy.job-total }}
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
@@ -318,7 +352,7 @@ jobs:
   test-summary:
     name: test summary
     needs: [candidate, changes, test-shard]
-    if: always() && needs.candidate.result == 'success'
+    if: always() && needs.candidate.result == 'success' && needs.candidate.outputs.cargo == 'true'
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 10
     steps:
@@ -386,6 +420,7 @@ jobs:
           retention-days: 14
 
   release:
+    if: needs.candidate.outputs.cargo == 'true'
     name: release
     needs: candidate
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
@@ -424,3 +459,110 @@ jobs:
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: cargo build --locked --release --workspace
         run: cargo build --locked --release --workspace
+
+  bazel:
+    name: bazel
+    needs: candidate
+    if: needs.candidate.outputs.bazel == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.candidate.outputs.sha }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Verify the candidate tree
+        id: tree
+        env:
+          CANDIDATE_TREE: ${{ needs.candidate.outputs.tree }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "Candidate tree: $CANDIDATE_TREE; checked tree: $tree"
+          if [ "$tree" != "$CANDIDATE_TREE" ]; then
+            echo "::error::Checked tree differs from the candidate tree"
+            exit 1
+          fi
+      - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin
+      - uses: bazel-contrib/setup-bazel@104e3eea9447cdaa4b00d0fb46191a3985d26ab3 # 0.19.1
+        with:
+          disk-cache: false
+          repository-cache: false
+          bazelisk-cache: false
+      - name: Check generated Bazel files
+        run: python3 scripts/agx/gen_bazel.py --check
+      - name: Create the checkout-local crate lock
+        run: |
+          if [ ! -f scripts/agx/Cargo.Bazel.lock ]; then
+            CARGO_BAZEL_REPIN=workspace bazelisk query @crates//:all > /dev/null
+          fi
+          if ! git diff --exit-code -- Cargo.lock; then
+            echo "::error::Bazel bootstrap changed Cargo.lock"
+            exit 1
+          fi
+      - name: Test and build with the event's BuildBuddy key
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          BUILDBUDDY_API_KEY_RO: ${{ secrets.BUILDBUDDY_API_KEY_RO }}
+          EXTERNAL_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          set -euo pipefail
+          # PR first: branch names never grant a PR the write key.
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            if [ "$EXTERNAL_PR" = "true" ]; then
+              KEY=""; SECRET=""
+              echo "External PR: uncached run; no BuildBuddy build-event upload."
+            else
+              KEY="$BUILDBUDDY_API_KEY_RO"; SECRET=BUILDBUDDY_API_KEY_RO
+            fi
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            case "$GITHUB_REF" in
+              refs/heads/main|refs/heads/wip/*)
+                KEY="$BUILDBUDDY_API_KEY"; SECRET=BUILDBUDDY_API_KEY ;;
+              *) echo "::error::Unexpected push ref for BuildBuddy"; exit 1 ;;
+            esac
+          elif [ -n "$MERGE_UPSTREAM" ]; then
+            KEY="$BUILDBUDDY_API_KEY"; SECRET=BUILDBUDDY_API_KEY
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            KEY="$BUILDBUDDY_API_KEY_RO"; SECRET=BUILDBUDDY_API_KEY_RO
+          else
+            echo "::error::Unexpected event for BuildBuddy"; exit 1
+          fi
+          if [ -n "$SECRET" ] && [ -z "$KEY" ]; then
+            echo "::error::Missing required secret $SECRET"
+            exit 1
+          fi
+          flags=(--disk_cache=)
+          if [ -n "$KEY" ]; then
+            flags+=(--remote_cache=grpcs://peterkc-io.buildbuddy.io
+              --remote_timeout=10m "--remote_header=x-buildbuddy-api-key=$KEY"
+              --bes_backend=grpcs://peterkc-io.buildbuddy.io
+              --bes_results_url=https://peterkc-io.buildbuddy.io/invocation/
+              --bes_timeout=5m)
+            if [ "$SECRET" = "BUILDBUDDY_API_KEY_RO" ]; then
+              flags+=(--remote_upload_local_results=false)
+            fi
+          fi
+          unset BUILDBUDDY_API_KEY BUILDBUDDY_API_KEY_RO
+          bazelisk test //... "${flags[@]}" --test_output=all \
+            --strategy=TestRunner=linux-sandbox --incompatible_sandbox_hermetic_tmp
+          bazelisk build -c opt //:bazel_binaries "${flags[@]}"
+      - name: Upload Bazel test logs
+        if: always() && steps.tree.conclusion == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bazel-test-logs
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+          retention-days: 14

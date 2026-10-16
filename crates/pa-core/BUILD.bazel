@@ -78,6 +78,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -149,6 +152,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -163,6 +169,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -177,6 +186,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -191,6 +203,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -220,6 +235,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -234,6 +252,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -262,6 +283,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -290,6 +314,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -304,6 +331,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -318,6 +348,9 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -390,5 +423,8 @@ rust_test(
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
     rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-core"},
+    data = ["//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )

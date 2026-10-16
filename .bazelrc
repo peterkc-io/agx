@@ -4,3 +4,6 @@ build --sandbox_default_allow_network=false
 build --test_env=DO_NOT_TRACK=1
 build --test_env=TZ=UTC
 test --test_output=errors
+test --run_under=//:bazel_test_env
+# Keep HOME-based Unix sockets below platform path limits. Linux isolates /tmp.
+test --test_tmpdir=/tmp/agx-tests

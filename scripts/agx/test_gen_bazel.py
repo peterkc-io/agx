@@ -78,6 +78,9 @@ class GeneratorTests(unittest.TestCase):
         self.assertIn('version = "1.2.3"', text)
         self.assertIn('normal_dev = True', text)
         self.assertNotIn('test__cross', generated["crates/other/BUILD.bazel"])
+        self.assertIn('name = "bazel_binaries"', generated["BUILD.bazel"])
+        self.assertIn('srcs = ["//crates/demo:demo-cli"]',
+                      generated["BUILD.bazel"])
 
     def test_dormant_files_do_not_create_targets(self):
         generated = gen_bazel.generate(self.metadata, {}, self.sources)
@@ -100,10 +103,12 @@ class GeneratorTests(unittest.TestCase):
         before = copy.deepcopy((self.metadata, overrides, self.sources))
         text = gen_bazel.generate(self.metadata, overrides, self.sources)[
             "crates/demo/BUILD.bazel"]
-        for expected in ['data = ["//:fixture"]',
+        for expected in ['data = ["//:fixture", "//:bazel_kernel_python"]',
                          'compile_data = ["//:included"]',
                          '"RUNTIME": "yes"', '"COMPILE": "yes"',
-                         '"agx-kernel"']:
+                         '"agx-kernel"', 'args = ["--nocapture"]',
+                         '"AGX_BAZEL_KERNEL": "1"',
+                         '$(rootpath //:bazel_kernel_python)']:
             self.assertIn(expected, text)
         self.assertEqual((self.metadata, overrides, self.sources), before)
 

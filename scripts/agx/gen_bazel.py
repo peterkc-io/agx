@@ -170,6 +170,17 @@ def generate(metadata: Mapping, overrides: Mapping,
                     tags = ["block-network"]
                     if override.get("kernel"):
                         tags.append("agx-kernel")
+                        data = list(override.get("data", []))
+                        data.append("//:bazel_kernel_python")
+                        attrs["data"] = starlark(data)
+                        env = dict(override.get("env", {}))
+                        env.update({
+                            "AGX_BAZEL_KERNEL": "1",
+                            "AGX_BAZEL_KERNEL_PREFIX":
+                                "$(rootpath //:bazel_kernel_python)",
+                        })
+                        attrs["env"] = starlark(env)
+                        attrs["args"] = starlark(["--nocapture"])
                     attrs["tags"] = starlark(tags)
                 content.append(render_rule(rule, attrs))
         generated[directory + "/BUILD.bazel"] = "\n".join(content)
@@ -177,6 +188,8 @@ def generate(metadata: Mapping, overrides: Mapping,
     if unused:
         raise ValueError("Overrides name absent targets: " + ", ".join(unused))
     root_content = [HEADER,
+                    'load("//:scripts/agx/bazel/defs.bzl", '
+                    '"agx_kernel_python", "agx_test_wrapper")\n',
                     'package(default_visibility = ["//visibility:public"])',
                     'exports_files(["Cargo.toml", "Cargo.lock", '
                     '"scripts/agx/Cargo.Bazel.lock"])\n']
@@ -189,6 +202,31 @@ def generate(metadata: Mapping, overrides: Mapping,
             "srcs": starlark([file_label(p, list(directories.values()))
                               for p in sorted(paths)]),
         }))
+    root_content.extend([
+        render_rule("filegroup", {
+            "name": starlark("bazel_binaries"),
+            "srcs": starlark(sorted(
+                "//" + directories[p["name"]] + ":" + t["name"]
+                for p in packages for t in p["targets"]
+                if t["kind"] == ["bin"]
+            )),
+        }),
+        render_rule("agx_test_wrapper", {
+            "name": starlark("bazel_test_env"),
+            "launcher": starlark("scripts/agx/bazel/test_env.sh"),
+            "script": starlark("scripts/agx/bazel/test_env.py"),
+        }),
+        render_rule("agx_kernel_python", {
+            "name": starlark("bazel_kernel_python"),
+            "srcs": starlark([":runtime_sources"]),
+            "manifest": starlark("prime-agent-runtime/pyproject.toml"),
+            "builder": starlark("scripts/agx/bazel/build_kernel.py"),
+            "agx": starlark("//crates/pa-cli:agx"),
+            "uv": ('select({"@platforms//os:macos": '
+                   '"@agx_uv_macos//:uv", "//conditions:default": '
+                   '"@agx_uv_linux//:uv"})'),
+        }),
+    ])
     generated["BUILD.bazel"] = "\n".join(root_content)
     return generated
 

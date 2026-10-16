@@ -70,8 +70,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -85,8 +86,10 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
-    data = ["//crates/pa-cli:agx"],
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    data = ["//crates/pa-cli:agx", "//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)", "AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -100,8 +103,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -115,8 +119,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -130,8 +135,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -145,8 +151,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -160,8 +167,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -175,8 +183,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -190,8 +199,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -205,8 +215,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -234,8 +245,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -249,8 +261,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -278,8 +291,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
-    data = ["//crates/pa-cli:agx"],
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_BIN_EXE_pa-daemon": "/tmp/agx-bazel-bin/pa-daemon", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    data = ["//crates/pa-cli:agx", "//crates/pa-daemon:pa-daemon"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)", "AGX_BAZEL_DAEMON": "$(rootpath //crates/pa-daemon:pa-daemon)"},
     tags = ["block-network"],
 )
 
@@ -293,8 +307,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -308,8 +323,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -323,8 +339,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -338,8 +355,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -367,8 +385,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -382,8 +401,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -426,8 +446,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -441,8 +462,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -456,8 +478,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -527,9 +550,10 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
     compile_data = ["//crates/agx-settings:tests/lock_compat.rs"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -557,8 +581,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx", "//crates/pa-daemon:tests/fixtures/mcp_echo_server.py"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -572,8 +597,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -587,8 +613,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -602,8 +629,10 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
-    data = ["//:bundled_skills", "//:packaging_inputs", "//:runtime_sources", "//crates/pa-cli:agx"],
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    data = ["//:bundled_skills", "//:packaging_inputs", "//:runtime_sources", "//crates/pa-cli:agx", "//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)", "AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -617,8 +646,10 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
-    data = ["//:bundled_skills", "//crates/pa-cli:agx"],
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    data = ["//:bundled_skills", "//crates/pa-cli:agx", "//:bazel_kernel_python"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)", "AGX_BAZEL_KERNEL": "1", "AGX_BAZEL_KERNEL_PREFIX": "$(rootpath //:bazel_kernel_python)"},
+    args = ["--nocapture"],
     tags = ["block-network", "agx-kernel"],
 )
 
@@ -632,8 +663,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -662,8 +694,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -677,8 +710,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -706,8 +740,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -721,8 +756,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -750,8 +786,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -793,8 +830,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
@@ -808,8 +846,9 @@ rust_test(
     deps = ["//crates/pa-agent:pa_agent", "//crates/pa-ai:pa_ai", "//crates/pa-core:pa_core", "//crates/pa-daemon:pa_daemon", "//crates/pa-telemetry:pa_telemetry", "//crates/pa-tui:pa_tui", "//crates/pa-types:pa_types", ":pa_cli"] + all_crate_deps(normal = True, normal_dev = True),
     proc_macro_deps = all_crate_deps(proc_macro = True, proc_macro_dev = True),
     aliases = {} | aliases(normal = True, normal_dev = True, proc_macro = True, proc_macro_dev = True),
-    rustc_env = {"CARGO_MANIFEST_DIR": "crates/pa-cli"},
+    rustc_env = {"CARGO_BIN_EXE_agx": "/tmp/agx-bazel-bin/agx", "CARGO_MANIFEST_DIR": "crates/pa-cli"},
     data = ["//crates/pa-cli:agx"],
+    env = {"AGX_BAZEL_AGX": "$(rootpath //crates/pa-cli:agx)"},
     tags = ["block-network"],
 )
 
