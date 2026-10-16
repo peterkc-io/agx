@@ -66,14 +66,23 @@ def check(repo, base, ledger, revision=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=ROOT)
-    parser.add_argument("--base", default="upstream/main")
+    bases = parser.add_mutually_exclusive_group()
+    bases.add_argument("--base", default="upstream/main")
+    bases.add_argument("--upstream", help="use the revision's upstream merge base")
     parser.add_argument("--revision", help="compare a commit instead of working tree")
     parser.add_argument("--ledger", type=Path)
     args = parser.parse_args(argv)
     ledger = args.ledger or args.repo / "docs/fork/SEAMS.md"
     try:
+        base = args.base
+        if args.upstream is not None:
+            base = subprocess.check_output(
+                ["git", "-C", str(args.repo), "merge-base",
+                 args.revision or "HEAD", args.upstream],
+                stderr=subprocess.PIPE, text=True,
+            ).strip()
         missing, stale, count = check(
-            args.repo, args.base, ledger, args.revision,
+            args.repo, base, ledger, args.revision,
         )
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Seam check failed: {error}", file=sys.stderr)

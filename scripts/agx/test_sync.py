@@ -572,7 +572,10 @@ class SyncTests(unittest.TestCase):
         self.git(self.seed, "commit", "-m", "squashed sync")
         self.commit("fork.txt", "later fork change\n")
         self.git(self.seed, "push", str(self.fork), "HEAD:main")
-        for branch in ("upstream", "upstream-main", "sync/2026-10-14"):
+        for branch in (
+            "upstream", "upstream-main", "sync/2026-10-14",
+            "sync/2026-10-20-2",
+        ):
             with self.subTest(branch=branch):
                 state = self.state()
                 state["closed_pr_pages"] = [[self.closed_sync_pr(
@@ -601,18 +604,20 @@ class SyncTests(unittest.TestCase):
         self.git(self.seed, "checkout", "main")
         advanced = self.upstream_change("next.txt", "next upstream\n")
         self.git(self.seed, "push", str(self.fork), "HEAD:upstream")
-        state = self.state()
-        state["closed_pr_pages"] = [[self.closed_sync_pr(
-            12, "upstream", head, "2026-10-14T12:00:00Z",
-        )]]
-        self.save_state(state)
-        result = self.sync()
-        self.assertIn("PR #12", result.stdout)
-        self.assertIn("main contains its head", result.stdout)
-        self.assertEqual(self.pushes(), [])
-        self.assertEqual(self.outputs(), {
-            "head": advanced, "run-gates": "true",
-        })
+        for branch in ("upstream", "sync/2026-10-20-2"):
+            with self.subTest(branch=branch):
+                state = self.state()
+                state["closed_pr_pages"] = [[self.closed_sync_pr(
+                    12, branch, head, "2026-10-20T12:00:00Z",
+                )]]
+                self.save_state(state)
+                result = self.sync()
+                self.assertIn("PR #12", result.stdout)
+                self.assertIn("main contains its head", result.stdout)
+                self.assertEqual(self.pushes(), [])
+                self.assertEqual(self.outputs(), {
+                    "head": advanced, "run-gates": "true",
+                })
 
     def test_no_merged_sync_pr_passes(self):
         head = self.upstream_change()

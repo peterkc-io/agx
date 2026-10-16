@@ -186,6 +186,87 @@ Commit the resolved merge with
 `chore: merge upstream <short SHA> into main`; the fork CI runs on PRs into
 `main`. The PR text names the upstream head it takes in.
 
+### 3a. Build a stacked sync
+
+The nightly sync job stays unchanged. It keeps the standing PR from `upstream`,
+its label and its `agx/sync-gates` status. A one-layer sync with no conflict may
+still land as the standing PR.
+
+For a larger sync, build plain stacked PRs. Each layer contains upstream merge
+commits, and each layer must pass CI on its own.
+
+```text
+1 estimate cuts -> 2 build layers -> 3 count final files before pushing
+                                           |
+4 open stacked PRs -> 5 USER GO for each merge, bottom-up
+                                           |
+6 preserve history -> 7 compare the top layer with the upstream baseline
+```
+
+1. Run the layer helper:
+
+   ```sh
+   python3 scripts/agx/sync_layers.py --base origin/main --head origin/upstream
+   ```
+
+   It reads Git only. It makes no network call and changes no ref. Its counts
+   are upstream-only estimates, not final PR counts. They exclude `*.lock` and
+   count a rename as two paths. Each cut is the farthest first-parent commit
+   that fits within 140 files, even if an earlier commit exceeds 140. If no
+   later cut fits, the next commit forms its own layer, marked `over limit`.
+   Conflict resolutions and fork fixes are not included in these estimates.
+
+2. Cut `sync/<date>-1` from `main`. Cut each later `sync/<date>-<n>` from the
+   layer below it. Merge the helper's cut commit with `git merge --no-ff` and
+   title the merge commit
+   `chore: merge upstream <short SHA> into sync/<date>-<n>`.
+   Resolve conflicts and apply fork fixes in the first layer that needs them.
+   Follow the conflict and seam rules above. Each layer must pass CI on its own.
+   The seam check uses the newest upstream commit that the layer contains:
+
+   ```sh
+   python3 scripts/agx/check_seams.py --upstream origin/upstream
+   ```
+
+3. Before pushing a layer, count its final reviewable files. Use the three-dot
+   comparison that GitHub shows, against the layer below it (`main` for layer 1):
+
+   ```sh
+   git diff --name-only --no-renames -z '<layer below>...<layer head>' |
+     python3 -c '
+   import sys
+   paths = sys.stdin.buffer.read().split(b"\0")
+   print(sum(1 for path in paths if path and not path.endswith(b".lock")))
+   '
+   ```
+
+   If the count exceeds 150 and the layer holds more than one upstream commit,
+   rebuild it from an earlier cut before anything is pushed. If the layer holds
+   one upstream commit and exceeds 150, stop before pushing and ask the user to
+   choose cubic-only review or a changed layer. This stop applies whether or not
+   the helper marked the layer `over limit`. For cubic-only review, the PR must
+   say that CodeRabbit cannot review it.
+
+4. Open PR n with base layer n-1. Layer 1 has base `main`. Use the title
+   `chore: merge upstream <short SHA> into main (layer <n> of <m>)`.
+
+5. Land the layers bottom-up, one at a time, with a merge commit and the user's
+   go for each merge. Use `gh pr merge <number> -R peterkc-io/agx --merge`, never
+   squash. The repository deletes each merged branch, and GitHub moves the next
+   PR's base to `main`. That base change starts a new `agx-ci` run. Before each merge,
+   check that the PR's base is now `main` and that `agx-ci` passed on its current
+   merge candidate. Read whether CodeRabbit reviewed it or reported it skipped.
+   Record a skip; do not retry it.
+
+6. Never rebase, squash or use "Update branch" on a layer. Do not use
+   `gh stack rebase` or `gh stack sync`. These operations rewrite the history
+   that the next sync needs. If a layer was squashed by mistake, stop and follow
+   [Recover a squashed sync](#recover-a-squashed-sync). Never reset `main`.
+
+7. Compare the ignored-test set with the upstream baseline once, for the top
+   layer. Its tree holds the whole upstream head. Follow the baseline procedure
+   in [Checks](#4-checks).
+
 ### Recover a squashed sync
 
 If preparation says `main` does not contain a merged sync PR's head, stop normal

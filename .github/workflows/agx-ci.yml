@@ -19,7 +19,8 @@ on:
   push:
     branches: ["wip/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "sync/**"]
+    types: [opened, synchronize, reopened, edited]
   workflow_call:
     inputs:
       merge-upstream:
@@ -46,7 +47,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: agx-ci-${{ github.ref }}-${{ inputs.merge-upstream }}
+  # A skipped non-base edit must not cancel a running PR check.
+  group: agx-ci-${{ github.ref }}-${{ inputs.merge-upstream }}-${{ github.event.action == 'edited' && github.event.changes.base == null && github.run_id || '' }}
   cancel-in-progress: true
 
 env:
@@ -57,6 +59,7 @@ env:
 
 jobs:
   check:
+    if: ${{ github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.base != null }}
     name: make check
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 120
@@ -79,7 +82,7 @@ jobs:
         if: ${{ !(github.ref_type == 'branch' && startsWith(github.ref_name, 'wip/agx-upstream-')) }}
         run: |
           git fetch --no-tags origin refs/heads/upstream:refs/remotes/origin/upstream
-          python3 scripts/agx/check_seams.py --base origin/upstream
+          python3 scripts/agx/check_seams.py --upstream origin/upstream
       - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin; the SHA selects the toolchain
         with:
           components: rustfmt, clippy

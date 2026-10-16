@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Standard-library tests for exact seam set comparison."""
 
+from contextlib import redirect_stderr, redirect_stdout
+import io
 from pathlib import Path
 import subprocess
 import tempfile
@@ -130,6 +132,100 @@ class SeamChecks(unittest.TestCase):
         self.write_rows(["one.rs", "one.rs"])
         with self.assertRaisesRegex(ValueError, "Duplicate"):
             check_seams.ledger_rows(self.ledger)
+
+    def stack_git(self, *args):
+        return self.git(
+            "-c", "user.name=Seam test",
+            "-c", "user.email=test@example.invalid",
+            "-c", "commit.gpgsign=false", *args,
+        )
+
+    def make_stack(self):
+        self.stack_git("commit", "--quiet", "-m", "upstream base")
+        base = self.git("rev-parse", "HEAD").strip()
+        self.git("branch", "-m", "fork-base")
+        self.git("checkout", "--quiet", "-b", "upstream")
+        (self.repo / "one.rs").write_text("upstream at first cut\n")
+        self.git("add", "one.rs")
+        self.stack_git("commit", "--quiet", "-m", "upstream one")
+        (self.repo / "cut.rs").write_text("upstream cut\n")
+        self.git("add", "cut.rs")
+        self.stack_git("commit", "--quiet", "-m", "upstream cut")
+        cut = self.git("rev-parse", "HEAD").strip()
+        (self.repo / "two.rs").write_text("later upstream change\n")
+        self.git("add", "two.rs")
+        self.stack_git("commit", "--quiet", "-m", "later upstream")
+        self.git("checkout", "--quiet", "-b", "main", base)
+        owned = self.repo / "docs/fork/FEATURES.md"
+        owned.parent.mkdir(parents=True)
+        owned.write_text("fork feature\n")
+        self.git("add", "docs/fork/FEATURES.md")
+        self.stack_git("commit", "--quiet", "-m", "fork feature")
+        self.git("checkout", "--quiet", "-b", "sync/layer-1")
+        self.stack_git("merge", "--quiet", "--no-ff", cut, "-m", "layer 1")
+        (self.repo / "one.rs").write_text("fork seam\n")
+        self.git("add", "one.rs")
+        self.stack_git("commit", "--quiet", "-m", "fork seam")
+        self.write_rows(["one.rs"])
+
+    def run_upstream_check(self, *args):
+        output, errors = io.StringIO(), io.StringIO()
+        with redirect_stdout(output), redirect_stderr(errors):
+            code = check_seams.main([
+                "--repo", str(self.repo), "--ledger", str(self.ledger),
+                "--upstream", "upstream", *args,
+            ])
+        return code, output.getvalue(), errors.getvalue()
+
+    def test_upstream_base_follows_two_layer_stack_and_partial_main(self):
+        self.make_stack()
+        code, output, errors = self.run_upstream_check()
+        self.assertEqual((code, errors), (0, ""))
+        self.assertIn("all 1 changed files", output)
+        self.git("checkout", "--quiet", "-b", "sync/layer-2")
+        self.stack_git(
+            "merge", "--quiet", "--no-ff", "upstream", "-m", "layer 2",
+        )
+        for revision in ((), ("--revision", "sync/layer-1")):
+            with self.subTest(revision=revision):
+                code, output, errors = self.run_upstream_check(*revision)
+                self.assertEqual((code, errors), (0, ""))
+                self.assertIn("all 1 changed files", output)
+        self.git("checkout", "--quiet", "main")
+        self.stack_git(
+            "merge", "--quiet", "--no-ff", "sync/layer-1", "-m", "land 1",
+        )
+        code, output, errors = self.run_upstream_check()
+        self.assertEqual((code, errors), (0, ""))
+        self.assertIn("all 1 changed files", output)
+
+    def test_upstream_base_rejects_unlisted_layer_edit(self):
+        self.make_stack()
+        (self.repo / "two.rs").write_text("unlisted fork edit\n")
+        code, output, errors = self.run_upstream_check()
+        self.assertEqual((code, output), (1, ""))
+        self.assertIn("Missing seam row: two.rs", errors)
+        self.git("add", "two.rs")
+        self.stack_git("commit", "--quiet", "-m", "unlisted edit")
+        code, output, errors = self.run_upstream_check("--revision", "HEAD")
+        self.assertEqual((code, output), (1, ""))
+        self.assertIn("Missing seam row: two.rs", errors)
+
+    def test_upstream_merge_base_failure_is_visible(self):
+        output, errors = io.StringIO(), io.StringIO()
+        with redirect_stdout(output), redirect_stderr(errors):
+            code = check_seams.main([
+                "--repo", str(self.repo), "--ledger", str(self.ledger),
+                "--upstream", "missing-upstream",
+            ])
+        self.assertEqual(code, 1)
+        self.assertIn("Seam check failed:", errors.getvalue())
+
+    def test_explicit_base_and_upstream_are_mutually_exclusive(self):
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as error:
+                check_seams.main(["--base", "HEAD", "--upstream", "upstream"])
+        self.assertEqual(error.exception.code, 2)
 
 
 if __name__ == "__main__":
