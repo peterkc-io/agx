@@ -154,14 +154,18 @@ Review the diff: keep only the smallest fork-required update. Never run
 `cargo generate-lockfile` or `cargo update`, and never bump registry versions.
 If registry versions change, stop.
 
-**New upstream test files** may need a fork change only of these kinds:
+**New upstream test files** may need a fork change only of these kinds (7 and 8 approved on 2026-10-16):
 
 1. the binary name, for example `CARGO_BIN_EXE_agx`;
 2. `cfg(target_os = "linux")` on a test that expects Linux;
 3. `AGX_PROCESS=1` on a test supervisor;
 4. the settings path `settings-agx.json` in a test;
 5. the ioctl cast `libc::c_ulong::from(libc::TIOCSCTTY)`;
-6. the kernel venv path `kernel-venv-agx` in a test's interpreter discovery.
+6. the kernel venv path `kernel-venv-agx` in a test's interpreter discovery;
+7. `AGX_PROCESS=1` on a test's CLI invocation that passes `PRIME_AGENT_DAEMON_SOCKET`
+   or another variable agx clears at startup, after scrubbing unrelated startup-cleared
+   and `PRIME_AGENT_INTERNAL_*` variables;
+8. an `agx-<uid>` socket dir in place of a `prime-agent-<uid>` dir in a test fixture.
 
 Any other change to a new upstream test file needs the user's decision. Search
 new test files for `kernel-venv/`: a test that cannot find its interpreter often

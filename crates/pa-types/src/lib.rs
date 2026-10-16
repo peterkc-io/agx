@@ -9,6 +9,7 @@
 pub mod ai;
 pub use agx_identity as fork_identity;
 
+pub mod compaction;
 pub mod daemon;
 pub mod goal;
 pub mod incident;

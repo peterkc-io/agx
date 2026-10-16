@@ -46,6 +46,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/src/config.rs` | Name the app agx; reject resolved upstream socket paths. | Four config tests, including both namespaces and all sources. |
 | `crates/pa-cli/src/daemon_client.rs` | macOS setsockopt after peer close returns EINVAL; set READ_POLL once. | Four daemon-client tests; closing-reason test 50/50. |
 | `crates/pa-cli/src/daemon_command.rs` | Apply socket precedence before guarded resolution. | CLI daemon parser tests and explicit socket rejection scenario. |
+| `crates/pa-cli/src/daemon_discovery/mod.rs` | `current_state_root`: exit with the socket rejection error before any socket use, because the fork resolver returns a `Result` (FR-013). | Release build; daemon_discovery_e2e; status with an upstream socket path refused. |
 | `crates/pa-cli/src/daemon_mode.rs` | Propagate socket rejection before starting a supervisor. | Config tests and live socket coexistence scenario. |
 | `crates/pa-cli/src/installer_update.rs` | Refuse agx installer execution before retained upstream Homebrew and update code. | Three fork-owned no-network update scenarios. |
 | `crates/pa-cli/src/interactive_mode.rs` | Propagate guarded socket resolution. | Config tests and live socket coexistence scenario. |
@@ -66,7 +67,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/clipboard_auth_commands_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/continue_guard_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/daemon_commands_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
-| `crates/pa-cli/tests/daemon_discovery_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
+| `crates/pa-cli/tests/daemon_discovery_e2e.rs` | Use Cargo executable agx in the existing fixture; `run_cli_state_env` marks the CLI as an agx child so an env-pinned socket survives startup isolation (FR-010), and removes the other variables that startup isolation clears; the shutdown-scope fixture uses an `agx-<uid>` socket dir, because agx refuses `prime-agent-<uid>` (FR-013). | daemon_discovery_e2e (8 tests) and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/differential_cli.rs` | Normalize only the fork executable/version identity in the existing comparison. | Differential CLI corpus with its configured upstream oracle. |
 | `crates/pa-cli/tests/dock_scope_exit_focus_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/eval_composition_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
@@ -81,6 +82,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-cli/tests/lock_compat_e2e.rs` | Use agx; test overlay locks (FR-019), keeping TS base-file cases. | CLI lock integration tests and Linux suites. |
 | `crates/pa-cli/tests/settings_mcp_save.rs` | Use agx; read MCP saves from `settings-agx.json` and keep `settings.json` byte-identical; an unparseable base no longer blocks the overlay write (user decision 2026-10-14). | settings_mcp_save tests. |
 | `crates/pa-daemon/tests/kernel_harness_env_e2e.rs` | Discover the fork default kernel venv; mark the test supervisor as agx so its lost-exit override survives startup isolation. | kernel_harness_env_e2e explicit run; Linux suites. |
+| `crates/pa-daemon/tests/launch_env_e2e.rs` | `kernel_python`, `spawn_supervisor`: discover the fork default kernel venv; mark the test supervisor as agx so its lost-exit override survives startup isolation. | launch_env_e2e explicit run; Linux suites. |
 | `crates/pa-cli/tests/mcp_view_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/package_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
 | `crates/pa-cli/tests/package_resources_e2e.rs` | Use Cargo executable agx in the existing fixture. | CLI integration target compilation and Linux suites (lead-owned). |
@@ -157,6 +159,7 @@ a failure in either carrier stops upstream-first.
 | `crates/pa-core/src/settings/mod.rs` | Export the CLI global overlay-storage boundary. | AC-008 real MCP command tests. |
 | `crates/pa-cli/src/mcp_command.rs` | Read effective global JSON and adapt the existing mutation callback to changed overlay paths, including inherited removal. | AC-008 add/get/list/replace/remove and malformed refusal. |
 | `prime-agent-runtime/src/rlm/factory.py` | Apply the stdlib RFC 7396 overlay before factory.enabled; support a missing base and retain unreadable-base refusal. | AC-028 kernel overlay tests; upstream factory/harness tests. |
+| `prime-agent-runtime/src/rlm/harness.py` | `_require_refinements_enabled` applies the `settings-agx.json` overlay before it reads `harnessRefinements`, as `factory_enabled` does (FR-018, FR-043). | test_agx_settings.py `AgxHarnessRefinements`; upstream test_harness.py. |
 | `crates/pa-core/src/packages/manager.rs` | Read global-write assertions from the overlay; assert project installs create neither global document. | Package unit tests; unchanged project path. |
 | `crates/pa-cli/src/client_settings.rs` | Read persisted client-setting assertions from the overlay without removing any assertions. | Client-settings unit tests. |
 | `crates/pa-core/src/refinement/mod.rs` | factory gate reads the agx overlay like the kernel (FR-043) | refinement factory_enabled overlay tests; test_agx_settings.py |
