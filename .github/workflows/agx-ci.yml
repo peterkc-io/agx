@@ -1,23 +1,12 @@
-# agx fork CI: the four `make check` commands, as the Makefile has them, in
-# one job on one runner. Fork-owned (agx-*), so it is not an upstream seam.
-#
-# One job, not upstream ci.yml's eight test shards: each shard recompiles its
-# test binaries, so sharding buys wall-clock time with extra runner minutes.
-# The fork runs this check rarely (wip branches, later fork PRs and the sync
-# job), so one warm-cached job is the cheaper shape.
-#
-# Runner choice, first match wins:
-#   1. the `runner` input of a manual dispatch;
-#   2. the repository variable AGX_CI_RUNNER (switch runners without an edit);
-#   3. ubuntu-24.04 (GitHub-hosted x64).
-# Blacksmith bills free-tier minutes per 2 vCPU: an 8 vCPU minute costs 4.
-# ubuntu-24.04 (GitHub-hosted) is free for a public repository, but slower.
+# agx fork CI: lint, eight test shards with a manifest audit, and release.
+# Fork-owned (agx-*), so this workflow is not an upstream seam.
+# Runner choice: manual input, then AGX_CI_RUNNER, then ubuntu-24.04.
 name: agx-ci
 
 on:
-  # A pushed wip/** branch runs the check without touching main.
+  # Every merge gets a full run; wip/** runs without touching main.
   push:
-    branches: ["wip/**"]
+    branches: [main, "wip/**"]
   pull_request:
     branches: [main, "sync/**"]
     types: [opened, synchronize, reopened, edited]
@@ -54,20 +43,68 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
+  SHARD_COUNT: "8"
   # Some upstream tests hash git commits made with zone-less dates.
   TZ: UTC
 
 jobs:
-  check:
+  candidate:
     if: ${{ github.event_name != 'pull_request' || github.event.action != 'edited' || github.event.changes.base != null }}
-    name: make check
+    name: candidate
     runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
-    timeout-minutes: 120
+    timeout-minutes: 10
+    outputs:
+      main-sha: ${{ steps.revision.outputs.main-sha }}
+      sha: ${{ steps.revision.outputs.sha }}
+      tree: ${{ steps.candidate.outputs.tree }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-          ref: ${{ inputs.merge-upstream != '' && 'main' || github.ref }}
+          ref: ${{ inputs.merge-upstream != '' && 'main' || github.sha }}
+          fetch-depth: 0
+      - name: Fix the checked revision once
+        id: revision
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          if [ -n "$MERGE_UPSTREAM" ]; then
+            sha=$(git rev-parse origin/main)
+            echo "main-sha=$sha" >> "$GITHUB_OUTPUT"
+            git checkout --detach "$sha"
+          else
+            sha="$GITHUB_SHA"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Record the candidate tree
+        id: candidate
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "Candidate tree: $tree"
+
+  changes:
+    name: touched crates (fork PR) / full selection
+    needs: candidate
+    runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    outputs:
+      crates: ${{ steps.select.outputs.crates }}
+      scope: ${{ steps.select.outputs.scope }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.candidate.outputs.sha }}
           fetch-depth: 0
       - name: Merge the requested upstream head into main
         if: inputs.merge-upstream != ''
@@ -78,58 +115,305 @@ jobs:
           git fetch --no-tags origin "$MERGE_UPSTREAM"
           git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
             -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Verify the candidate tree
+        id: tree
+        env:
+          CANDIDATE_TREE: ${{ needs.candidate.outputs.tree }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "Candidate tree: $CANDIDATE_TREE; checked tree: $tree"
+          if [ "$tree" != "$CANDIDATE_TREE" ]; then
+            echo "::error::Checked tree differs from the candidate tree"
+            exit 1
+          fi
+      - name: Select the touched crates
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          NARROW_PR: ${{ github.event_name == 'pull_request' && github.head_ref != 'upstream' && !startsWith(github.head_ref, 'sync/') }}
+        run: |
+          set -euo pipefail
+          if [ "$NARROW_PR" != "true" ]; then
+            echo "$GITHUB_EVENT_NAME wave: the full selection"
+            echo "crates=" >> "$GITHUB_OUTPUT"
+            echo "scope=all" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Paginate the files API, including both sides of a rename.
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" \
+            --paginate --jq '.[] | [.filename, .previous_filename // ""] | @tsv' \
+            > "${RUNNER_TEMP}/pr-files.tsv"
+          GITHUB_OUTPUT="${RUNNER_TEMP}/selection" \
+            python3 scripts/ci_pr_crates.py "${RUNNER_TEMP}/pr-files.tsv"
+          # Upstream's impact map omits fork crates. Add all of them when
+          # the selection narrows; a non-crate change already selects all.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import tomllib
+
+          selection = dict(line.split("=", 1) for line in
+                           (Path(os.environ["RUNNER_TEMP"]) / "selection")
+                           .read_text().splitlines())
+          crates = selection["crates"]
+          if crates:
+              fork_crates = {
+                  tomllib.loads(path.read_text())["package"]["name"]
+                  for path in Path(".").glob("crates/agx-*/Cargo.toml")
+              }
+              crates = ",".join(sorted(set(crates.split(",")) | fork_crates))
+              selection = {"crates": crates, "scope": f"crates ({crates})"}
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              for key, value in selection.items():
+                  output.write(f"{key}={value}\n")
+          PY
+      - name: Report the selection
+        env:
+          SCOPE: ${{ steps.select.outputs.scope }}
+          CRATES: ${{ steps.select.outputs.crates }}
+        run: |
+          echo "wave selection: $SCOPE"
+          if [ -n "$CRATES" ]; then
+            echo "crates under test: $CRATES"
+          fi
+
+  lint:
+    name: lint
+    needs: candidate
+    runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.candidate.outputs.sha }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Verify the candidate tree
+        id: tree
+        env:
+          CANDIDATE_TREE: ${{ needs.candidate.outputs.tree }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "Candidate tree: $CANDIDATE_TREE; checked tree: $tree"
+          if [ "$tree" != "$CANDIDATE_TREE" ]; then
+            echo "::error::Checked tree differs from the candidate tree"
+            exit 1
+          fi
       - name: Check the upstream seam ledger
         if: ${{ !(github.ref_type == 'branch' && startsWith(github.ref_name, 'wip/agx-upstream-')) }}
         run: |
           git fetch --no-tags origin refs/heads/upstream:refs/remotes/origin/upstream
           python3 scripts/agx/check_seams.py --upstream origin/upstream
-      - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin; the SHA selects the toolchain
+      - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           cache-on-failure: true
-          shared-key: agx-ci
+          shared-key: agx-lint
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - name: cargo fmt --all --check
+        run: cargo fmt --all --check
+      - name: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Fork script tests
+        if: ${{ !(github.ref_type == 'branch' && startsWith(github.ref_name, 'wip/agx-upstream-')) }}
+        run: python3 -B -m unittest discover -s scripts/agx -p 'test_*.py'
+
+  test-shard:
+    needs: [candidate, changes]
+    name: test shard ${{ matrix.shard }}/${{ strategy.job-total }}
+    runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.candidate.outputs.sha }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Verify the candidate tree
+        id: tree
+        env:
+          CANDIDATE_TREE: ${{ needs.candidate.outputs.tree }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "Candidate tree: $CANDIDATE_TREE; checked tree: $tree"
+          if [ "$tree" != "$CANDIDATE_TREE" ]; then
+            echo "::error::Checked tree differs from the candidate tree"
+            exit 1
+          fi
+      - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          cache-on-failure: true
+          shared-key: agx-test-shards
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Install uv (the kernel venv bootstrap below uses it)
         run: |
           python3 -m pip install --user uv
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: cargo fmt --all --check
-        run: cargo fmt --all --check
-      - name: cargo clippy --workspace --all-targets -- -D warnings
-        run: cargo clippy --workspace --all-targets -- -D warnings
-      # The kernel e2e suites need a ready kernel venv (upstream ci.yml's
-      # bootstrap step); the bootstrap needs the debug prime-agent binary.
-      # The fork renames the CLI binary to agx; upstream names it prime-agent.
-      # Use whichever this checkout builds, so the same file runs on both.
-      - name: Build the workspace bins and bootstrap the kernel venv
+      - name: Resolve this shard's selection
+        id: selection
+        env:
+          CRATES: ${{ needs.changes.outputs.crates }}
         run: |
-          cargo build --workspace --bins
+          python3 scripts/ci_test_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARD_COUNT }} \
+            --crates "$CRATES" --print-selection
+      # Empty legs still run the shard script to write their manifest.
+      - name: Build the workspace bins and bootstrap the kernel venv
+        if: steps.selection.outputs.units != '0'
+        run: |
+          cargo build --locked --workspace --bins
           bin=./target/debug/agx
           [ -x "$bin" ] || bin=./target/debug/prime-agent
           "$bin" --prime-agent-bootstrap
-      # --no-fail-fast runs every test binary after a failure, so one run
-      # gives the full failure and ignored-test list. The pass/fail result is
-      # the same as `make check`'s plain `cargo test --workspace`.
-      - name: cargo test --workspace
+      - name: Run this shard's test subset
         id: test
         shell: bash
-        run: cargo test --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/cargo-test.log"
-      # The known-flake rule (docs/fork/SYNC.md): each failed test, alone,
-      # 20 times. The counts go to the job summary; the job stays failed.
+        env:
+          CRATES: ${{ needs.changes.outputs.crates }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci_test_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARD_COUNT }} \
+            --crates "$CRATES" \
+            --manifest "$RUNNER_TEMP/shard-manifest-${{ matrix.shard }}-attempt-${{ github.run_attempt }}.json" \
+            2>&1 | tee "$RUNNER_TEMP/shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}.log"
+      # Counts are evidence for the known-flake rule; the job stays failed.
       - name: Rerun each failed test alone 20 times
         if: failure() && steps.test.conclusion == 'failure'
-        run: python3 scripts/agx/rerun_failed.py "$RUNNER_TEMP/cargo-test.log" 20
-      - name: Upload the test log (the ignored and flaky test record)
-        if: always()
+        run: python3 scripts/agx/rerun_failed.py "$RUNNER_TEMP/shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}.log" 20
+      - name: Upload the shard manifest and log (always)
+        if: always() && steps.tree.conclusion == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: shard-manifest-${{ matrix.shard }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/shard-manifest-${{ matrix.shard }}-attempt-${{ github.run_attempt }}.json
+            ${{ runner.temp }}/shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}.log
+          retention-days: 14
+
+  test-summary:
+    name: test summary
+    needs: [candidate, test-shard]
+    if: always() && needs.candidate.result == 'success'
+    runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.candidate.outputs.sha }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Verify the candidate tree
+        id: tree
+        env:
+          CANDIDATE_TREE: ${{ needs.candidate.outputs.tree }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "Candidate tree: $CANDIDATE_TREE; checked tree: $tree"
+          if [ "$tree" != "$CANDIDATE_TREE" ]; then
+            echo "::error::Checked tree differs from the candidate tree"
+            exit 1
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: shard-manifest-*
+          merge-multiple: true
+          path: manifests
+      - name: Audit the shards and merge their failure reports
+        env:
+          SHARD_RESULT: ${{ needs.test-shard.result }}
+        run: |
+          python3 scripts/test_ci_test_shard.py
+          python3 scripts/test_ci_pr_crates.py
+          python3 scripts/test_ci_test_shard_summary.py
+          python3 scripts/ci_test_shard_summary.py --total ${{ env.SHARD_COUNT }} --dir manifests
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "::error::Not every shard passed (matrix result: $SHARD_RESULT)"
+            exit 1
+          fi
+      - name: Join the selected attempts' logs
+        if: always() && steps.tree.conclusion == 'success'
+        run: |
+          python3 scripts/agx/join_shard_logs.py --manifests manifests --logs manifests \
+            --total ${{ env.SHARD_COUNT }} --output cargo-test.log
+      - name: Upload the joined test log
+        if: always() && steps.tree.conclusion == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cargo-test-log
-          path: ${{ runner.temp }}/cargo-test.log
-          if-no-files-found: ignore
+          path: cargo-test.log
+          if-no-files-found: error
           retention-days: 14
-      # Build the release even when tests failed, so one run also proves the
-      # release build. The job still fails on any test failure.
-      - name: cargo build --release --workspace
-        if: ${{ !cancelled() && (steps.test.conclusion == 'success' || steps.test.conclusion == 'failure') }}
-        run: cargo build --release --workspace
+
+  release:
+    name: release
+    needs: candidate
+    runs-on: ${{ (inputs.runner != '' && inputs.runner != 'default') && inputs.runner || vars.AGX_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ needs.candidate.outputs.sha }}
+          fetch-depth: 0
+      - name: Merge the requested upstream head into main
+        if: inputs.merge-upstream != ''
+        env:
+          MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
+        run: |
+          [[ "$MERGE_UPSTREAM" =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]
+          git fetch --no-tags origin "$MERGE_UPSTREAM"
+          git -c user.name='agx sync checks' -c user.email='agx-sync@users.noreply.github.com' \
+            -c commit.gpgsign=false merge --no-edit --no-gpg-sign "$MERGE_UPSTREAM"
+      - name: Verify the candidate tree
+        id: tree
+        env:
+          CANDIDATE_TREE: ${{ needs.candidate.outputs.tree }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "Candidate tree: $CANDIDATE_TREE; checked tree: $tree"
+          if [ "$tree" != "$CANDIDATE_TREE" ]; then
+            echo "::error::Checked tree differs from the candidate tree"
+            exit 1
+          fi
+      - uses: dtolnay/rust-toolchain@ce678459e9fc7500d337468f904b95f1b5c10b5e # 1.98.1 action pin
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          cache-on-failure: true
+          shared-key: agx-release
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      - name: cargo build --locked --release --workspace
+        run: cargo build --locked --release --workspace

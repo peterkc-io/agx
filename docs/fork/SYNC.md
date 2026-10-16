@@ -262,11 +262,11 @@ commits, and each layer must pass CI on its own.
    PR's base to `main`. That base change starts a new `agx-ci` run. Before each merge,
    check that the PR's base is now `main` and that `agx-ci` passed on its current
    merge candidate. A title or body edit also starts an `agx-ci` run, but its
-   `make check` job is skipped. The checks list shows it as skipped, yet GitHub
-   counts a skipped job as passing for required checks and merging. A base change
-   keeps the same head SHA, so an older run on the old base can also look like a
-   pass. Use only a run that started after the lower layer merged and whose
-   `make check` job ran:
+   `candidate` job and dependent jobs are skipped. GitHub counts skipped jobs as
+   passing for required checks and merging. A base change keeps the same head
+   SHA, so an older run on the old base can also look like a pass. Use only a run
+   that started after the lower layer merged and whose `candidate`, lint,
+   test shards, test summary and release jobs ran:
 
    ```sh
    gh run list -R peterkc-io/agx --workflow agx-ci.yml --branch <layer branch> \
@@ -275,7 +275,8 @@ commits, and each layer must pass CI on its own.
    ```
 
    Its `createdAt` must be later than the lower layer's merge time, and its
-   `make check` job must not be skipped. If no such run exists, ask the user
+   `candidate`, lint, test shards, test summary and release jobs must not be
+   skipped. If no such run exists, ask the user
    before you close and reopen the PR. Reopening sends the `reopened` event,
    which starts a run.
    Read whether CodeRabbit reviewed the PR or reported it skipped. Record a skip;
@@ -364,18 +365,51 @@ These tests fail on macOS hosts and pass on Linux; Linux CI decides them:
   `kernel_startup_memo` `dispose_after_a_kill_waits_the_doomed_boot`
 - `interactive_daemon_e2e` reads `/proc` and runs only on Linux.
 
-**Fork CI (Linux).** Compare the sync PR's run with a baseline run on the same
-upstream head without fork changes. To make one, commit only
-`.github/workflows/agx-ci.yml` and `scripts/agx/rerun_failed.py` from the current
-`main` on top of the recorded upstream SHA, and push it as a
-`wip/agx-upstream-<sha>` branch. The old `agx/ci` template is retired.
-The seam step skips only branch runs named `wip/agx-upstream-*`, for both push
-and manual dispatch. It still runs on normal fork branches, `main`, PR merge
-refs and tags, including a tag named `wip/agx-upstream-x`.
-Keep the baseline branch to the recorded upstream SHA plus those two CI files;
-a green run is baseline evidence for that SHA only.
-The ignored tests must match; every other test must pass, except a known flake.
-Delete the `wip/**` branch after the comparison; its run log stays on GitHub.
+**Fork CI (Linux).** `agx-ci.yml` runs lint (seams, formatting, Clippy and
+fork script tests), eight parallel test shards, a manifest audit and a separate
+release build. Each shard builds the workspace bins and bootstraps the kernel
+venv before its tests, unless it has no selected units.
+
+The `candidate` job fixes the checked commit and tree once. For a sync call, it
+records the current `main` SHA and merges the requested upstream head into it.
+For other events, it uses the event commit (the merge commit for a PR). Every
+other job checks out that fixed SHA, applies the same merge when requested, and
+stops before checks or builds if its tree differs from the candidate tree.
+
+Fork PRs select touched crates and reverse dependencies, always adding every
+`crates/agx-*` package. Any path outside a known upstream crate selects all.
+PRs from `upstream` or `sync/*`, pushes to `wip/**` and `main`, sync calls and
+manual dispatches run the full selection. A PR from `wip/*` is still a fork PR.
+Only pushes to `main` save the shared test-shard dependency cache; other runs
+restore it. Thus every merge into `main` gets a full run.
+
+Compare the sync PR's run with a baseline run on the same upstream head without
+fork changes. To make one, commit only these files from the current `main` on top
+of the recorded upstream SHA:
+
+- `.github/workflows/agx-ci.yml`
+- `scripts/agx/rerun_failed.py`
+- `scripts/agx/join_shard_logs.py`
+
+Push it as a `wip/agx-upstream-<sha>` branch. The old `agx/ci` template is retired.
+The seam and fork script test steps skip only branch runs named
+`wip/agx-upstream-*`, for both push and manual dispatch. They still run on normal
+fork branches, `main`, PR merge refs and tags, including a tag named
+`wip/agx-upstream-x`. Keep the baseline branch to the recorded upstream SHA plus
+those three CI files; a green run is baseline evidence for that SHA only.
+
+Download artifact `cargo-test-log` from each run. It holds one `cargo-test.log`,
+joined in shard order. The summary chooses the newest available manifest attempt
+for each shard and joins exactly those attempts' logs. A rerun can therefore mix
+attempts across shards. An absent selected log appears as
+`MISSING shard <n> attempt <a>`; a shard without a manifest appears as
+`MISSING shard <n> attempt unknown (no manifest)`. Missing output is not evidence
+that tests passed. The summary stays failed when a shard or the audit failed,
+even though it still uploads the joined log.
+
+Use those two joined logs to compare the ignored-test sets. The ignored tests
+must match; every other test must pass, except a known flake. Delete the `wip/**`
+branch after the comparison; its run log stays on GitHub.
 
 ### Known-flake rule
 
@@ -387,9 +421,13 @@ failure text stops the sync for a decision.
 
 The CI helper `scripts/agx/rerun_failed.py` finds failed tests even when result
 lines start with ANSI CSI sequences, including `ESC[>4;0m` and `ESC[?25l`.
-It reports rerun counts but leaves the job failed; apply the rule above.
-If a failed run yields no failed test, inspect the log and rerun the affected
-tests by hand; missing rerun evidence is not a pass.
+Each shard writes its own log with `pipefail`. If its test step fails, the
+shard runs `scripts/agx/rerun_failed.py <its log> 20`. It reports rerun counts but
+leaves the job failed; apply the rule above. Every shard uploads its log and
+manifest even after a test failure. Read the joined `cargo-test.log` in artifact
+`cargo-test-log` for the run's failed and ignored tests; read the failed shard's
+job summary for rerun counts. If a failed run yields no failed test, inspect the
+log and rerun the affected tests by hand; missing rerun evidence is not a pass.
 
 Current known flakes:
 
