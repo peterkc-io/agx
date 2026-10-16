@@ -465,7 +465,7 @@ jobs:
     needs: candidate
     if: needs.candidate.outputs.bazel == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -500,6 +500,11 @@ jobs:
           bazelisk-cache: false
       - name: Check generated Bazel files
         run: python3 scripts/agx/gen_bazel.py --check
+      - name: Allow the user namespaces that Bazel's Linux sandbox needs
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Create the checkout-local crate lock
         run: |
           if [ ! -f scripts/agx/Cargo.Bazel.lock ]; then
@@ -511,7 +516,8 @@ jobs:
           fi
       - name: Test and build with the event's BuildBuddy key
         env:
-          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+          # A PR run never receives the write key, even in its step environment.
+          BUILDBUDDY_API_KEY: ${{ github.event_name != 'pull_request' && secrets.BUILDBUDDY_API_KEY || '' }}
           BUILDBUDDY_API_KEY_RO: ${{ secrets.BUILDBUDDY_API_KEY_RO }}
           EXTERNAL_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
           MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
@@ -542,6 +548,10 @@ jobs:
             echo "::error::Missing required secret $SECRET"
             exit 1
           fi
+          # Bazel's server logs its full command line, including --remote_header, to
+          # <output_base>/java.log. Never upload that file; delete it when this step ends.
+          OUTPUT_BASE=$(bazelisk info output_base)
+          trap 'bazelisk shutdown >/dev/null 2>&1 || true; rm -f "$OUTPUT_BASE"/java.log*' EXIT
           flags=(--disk_cache=)
           if [ -n "$KEY" ]; then
             flags+=(--remote_cache=grpcs://peterkc-io.buildbuddy.io
