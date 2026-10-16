@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read-only sync layer estimates against temporary Git histories."""
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -20,15 +21,22 @@ class SyncLayersTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.repo = Path(self.temp.name)
+        self.clock = 1_700_000_000
         self.git("init", "--quiet", "-b", "main")
         self.base = self.commit({"seed.txt": "seed\n"})
         self.git("branch", "base", self.base)
 
-    def git(self, *args):
+    def git(self, *args, env=None):
         return subprocess.check_output(
             ["git", "-C", str(self.repo), *args], text=True,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=env,
         ).strip()
+
+    def dated(self):
+        # Distinct dates keep Git's commit order fixed across runs.
+        self.clock += 60
+        date = f"@{self.clock} +0000"
+        return dict(os.environ, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date)
 
     def commit(self, changes):
         for name, text in changes.items():
@@ -42,6 +50,7 @@ class SyncLayersTests(unittest.TestCase):
             "-c", "user.name=Layer test",
             "-c", "user.email=test@example.invalid",
             "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "test",
+            env=self.dated(),
         )
         return self.git("rev-parse", "HEAD")
 
@@ -98,6 +107,30 @@ class SyncLayersTests(unittest.TestCase):
         self.commit({f"file-{n}": "new\n" for n in range(140)})
         head = self.commit({"Cargo.lock": "lock\n"})
         self.assert_layers([f"Layer 1: {head} estimate 140 files"])
+
+    def test_cuts_follow_the_first_parent_chain(self):
+        first = self.commit({f"main-{n}": "new\n" for n in range(10)})
+        self.git("checkout", "--quiet", "-b", "side")
+        side = self.commit({f"side-{n}": "new\n" for n in range(100)})
+        self.commit({f"side-{n}": "new\n" for n in range(100, 200)})
+        self.git("checkout", "--quiet", "main")
+        self.git(
+            "-c", "user.name=Layer test",
+            "-c", "user.email=test@example.invalid",
+            "-c", "commit.gpgsign=false",
+            "merge", "--quiet", "--no-ff", "-m", "merge side", "side",
+            env=self.dated(),
+        )
+        merge = self.git("rev-parse", "HEAD")
+        head = self.commit({"last.txt": "last\n"})
+        # A cut at the side commit (110 files) would fit, but it is not on
+        # the first-parent chain, so the merge forms its own layer.
+        self.assertNotIn(side, self.git("rev-list", "--first-parent", "HEAD"))
+        self.assert_layers([
+            f"Layer 1: {first} estimate 10 files",
+            f"Layer 2: {merge} estimate 200 files (over limit)",
+            f"Layer 3: {head} estimate 1 files",
+        ])
 
     def test_head_already_in_base_needs_no_layer(self):
         self.commit({"later.txt": "later\n"})

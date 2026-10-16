@@ -233,13 +233,18 @@ commits, and each layer must pass CI on its own.
    comparison that GitHub shows, against the layer below it (`main` for layer 1):
 
    ```sh
-   git diff --name-only --no-renames -z '<layer below>...<layer head>' |
-     python3 -c '
-   import sys
-   paths = sys.stdin.buffer.read().split(b"\0")
+   python3 - '<layer below>...<layer head>' <<'EOF'
+   import subprocess, sys
+   paths = subprocess.run(
+       ["git", "diff", "--name-only", "--no-renames", "-z", sys.argv[1]],
+       check=True, stdout=subprocess.PIPE,
+   ).stdout.split(b"\0")
    print(sum(1 for path in paths if path and not path.endswith(b".lock")))
-   '
+   EOF
    ```
+
+   A wrong ref makes `git diff` fail, and the command then stops with an error
+   instead of printing a count.
 
    If the count exceeds 150 and the layer holds more than one upstream commit,
    rebuild it from an earlier cut before anything is pushed. If the layer holds
