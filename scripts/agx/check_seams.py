@@ -76,11 +76,17 @@ def main(argv=None):
     try:
         base = args.base
         if args.upstream is not None:
-            base = subprocess.check_output(
+            result = subprocess.run(
                 ["git", "-C", str(args.repo), "merge-base",
                  args.revision or "HEAD", args.upstream],
-                stderr=subprocess.PIPE, text=True,
-            ).strip()
+                capture_output=True, text=True,
+            )
+            if result.returncode:
+                raise ValueError(
+                    "git merge-base failed: "
+                    f"{result.stderr.strip() or 'no common ancestor'}"
+                )
+            base = result.stdout.strip()
         missing, stale, count = check(
             args.repo, base, ledger, args.revision,
         )

@@ -219,7 +219,7 @@ class SeamChecks(unittest.TestCase):
                 "--upstream", "missing-upstream",
             ])
         self.assertEqual(code, 1)
-        self.assertIn("Seam check failed:", errors.getvalue())
+        self.assertIn("Seam check failed: git merge-base failed:", errors.getvalue())
 
     def test_explicit_base_and_upstream_are_mutually_exclusive(self):
         with redirect_stderr(io.StringIO()):
