@@ -516,8 +516,8 @@ jobs:
           fi
       - name: Test and build with the event's BuildBuddy key
         env:
-          # A PR run never receives the write key, even in its step environment.
-          BUILDBUDDY_API_KEY: ${{ github.event_name != 'pull_request' && secrets.BUILDBUDDY_API_KEY || '' }}
+          # Only pushes and sync calls receive the write key, even in the step environment.
+          BUILDBUDDY_API_KEY: ${{ (github.event_name == 'push' || inputs.merge-upstream != '') && secrets.BUILDBUDDY_API_KEY || '' }}
           BUILDBUDDY_API_KEY_RO: ${{ secrets.BUILDBUDDY_API_KEY_RO }}
           EXTERNAL_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
           MERGE_UPSTREAM: ${{ inputs.merge-upstream }}
@@ -548,6 +548,8 @@ jobs:
             echo "::error::Missing required secret $SECRET"
             exit 1
           fi
+          # Clear the key variables before any Bazel command starts the server.
+          unset BUILDBUDDY_API_KEY BUILDBUDDY_API_KEY_RO
           # Bazel's server logs its full command line, including --remote_header, to
           # <output_base>/java.log. Never upload that file; delete it when this step ends.
           OUTPUT_BASE=$(bazelisk info output_base)
@@ -563,7 +565,6 @@ jobs:
               flags+=(--remote_upload_local_results=false)
             fi
           fi
-          unset BUILDBUDDY_API_KEY BUILDBUDDY_API_KEY_RO
           bazelisk test //... "${flags[@]}" --test_output=all \
             --strategy=TestRunner=linux-sandbox --incompatible_sandbox_hermetic_tmp
           bazelisk build -c opt //:bazel_binaries "${flags[@]}"
