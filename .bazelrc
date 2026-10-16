@@ -3,6 +3,10 @@ common --enable_bzlmod
 build --sandbox_default_allow_network=false
 build --test_env=DO_NOT_TRACK=1
 build --test_env=TZ=UTC
+# Cargo runs one test binary at a time. Keep deadline-sensitive binaries from
+# competing (crates/pa-cli/tests/kitty_verdict_time_e2e.rs:208-218 and
+# crates/pa-daemon/tests/agent_family_e2e.rs:523-535).
+test --local_test_jobs=1
 test --test_output=errors
 test --run_under=//:bazel_test_env
 # Keep HOME-based Unix sockets below platform path limits. Linux isolates /tmp.
