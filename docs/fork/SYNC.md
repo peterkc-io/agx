@@ -34,8 +34,9 @@ The mirror branch was called `upstream-main` until the rename decided on 2026-10
   blocks force-pushes and deletion.
 - Never use GitHub's "Resolve conflicts" or "Update branch" buttons. They commit
   to `upstream` or rebase the wrong side.
-- PRs from `upstream` or `sync/<date>` land with a merge commit. `main` must
-  contain upstream's commits, or the next sync refuses to write.
+- PRs from `upstream`, `sync/<date>` or a layer branch `sync/<date>-<n>` land
+  with a merge commit. `main` must contain upstream's commits, or the next sync
+  refuses to write.
 - Every other PR lands with a squash merge: one commit, subject from the PR title,
   empty body. The repository allows merge and squash, not rebase merges. GitHub
   cannot enforce the method per PR; check the source before merging.
@@ -255,8 +256,19 @@ commits, and each layer must pass CI on its own.
    squash. The repository deletes each merged branch, and GitHub moves the next
    PR's base to `main`. That base change starts a new `agx-ci` run. Before each merge,
    check that the PR's base is now `main` and that `agx-ci` passed on its current
-   merge candidate. Read whether CodeRabbit reviewed it or reported it skipped.
-   Record a skip; do not retry it.
+   merge candidate. A title or body edit also starts an `agx-ci` run, but its
+   `make check` job is skipped, and GitHub shows a skipped job as passed. So read
+   the newest run for the PR's current head whose `make check` job ran:
+
+   ```sh
+   gh run list -R peterkc-io/agx --workflow agx-ci.yml --branch <layer branch>
+   gh run view <run id> -R peterkc-io/agx --json jobs
+   ```
+
+   If no new run started after the base change, ask the user before you close
+   and reopen the PR. Reopening sends the `reopened` event, which starts a run.
+   Read whether CodeRabbit reviewed the PR or reported it skipped. Record a skip;
+   do not retry it.
 
 6. Never rebase, squash or use "Update branch" on a layer. Do not use
    `gh stack rebase` or `gh stack sync`. These operations rewrite the history
