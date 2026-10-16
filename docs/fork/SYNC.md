@@ -257,16 +257,22 @@ commits, and each layer must pass CI on its own.
    PR's base to `main`. That base change starts a new `agx-ci` run. Before each merge,
    check that the PR's base is now `main` and that `agx-ci` passed on its current
    merge candidate. A title or body edit also starts an `agx-ci` run, but its
-   `make check` job is skipped, and GitHub shows a skipped job as passed. So read
-   the newest run for the PR's current head whose `make check` job ran:
+   `make check` job is skipped. The checks list shows it as skipped, yet GitHub
+   counts a skipped job as passing for required checks and merging. A base change
+   keeps the same head SHA, so an older run on the old base can also look like a
+   pass. Use only a run that started after the lower layer merged and whose
+   `make check` job ran:
 
    ```sh
-   gh run list -R peterkc-io/agx --workflow agx-ci.yml --branch <layer branch>
+   gh run list -R peterkc-io/agx --workflow agx-ci.yml --branch <layer branch> \
+     --json databaseId,headSha,createdAt,conclusion
    gh run view <run id> -R peterkc-io/agx --json jobs
    ```
 
-   If no new run started after the base change, ask the user before you close
-   and reopen the PR. Reopening sends the `reopened` event, which starts a run.
+   Its `createdAt` must be later than the lower layer's merge time, and its
+   `make check` job must not be skipped. If no such run exists, ask the user
+   before you close and reopen the PR. Reopening sends the `reopened` event,
+   which starts a run.
    Read whether CodeRabbit reviewed the PR or reported it skipped. Record a skip;
    do not retry it.
 
