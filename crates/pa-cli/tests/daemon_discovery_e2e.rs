@@ -552,6 +552,18 @@ fn run_cli_state_env(
     for key in SCRUB_ENV {
         command.env_remove(key);
     }
+    // agx: AGX_PROCESS=1 skips the startup cleanup (FR-010), so remove what it clears.
+    for (key, _) in std::env::vars_os() {
+        let key = key.to_string_lossy();
+        let cleared = [
+            "PRIME_AGENT_KERNEL_VENV",
+            "PRIME_AGENT_KERNEL_OWNER_PID",
+            "PI_PACKAGE_DIR",
+        ];
+        if key.starts_with("PRIME_AGENT_INTERNAL_") || cleared.contains(&key.as_ref()) {
+            command.env_remove(key.as_ref());
+        }
+    }
     match daemon_socket {
         Some(socket) => command.env("PRIME_AGENT_DAEMON_SOCKET", socket),
         None => command.env_remove("PRIME_AGENT_DAEMON_SOCKET"),
