@@ -34,8 +34,9 @@ The mirror branch was called `upstream-main` until the rename decided on 2026-10
   blocks force-pushes and deletion.
 - Never use GitHub's "Resolve conflicts" or "Update branch" buttons. They commit
   to `upstream` or rebase the wrong side.
-- PRs from `upstream` or `sync/<date>` land with a merge commit. `main` must
-  contain upstream's commits, or the next sync refuses to write.
+- PRs from `upstream`, `sync/<date>` or a layer branch `sync/<date>-<n>` land
+  with a merge commit. `main` must contain upstream's commits, or the next sync
+  refuses to write.
 - Every other PR lands with a squash merge: one commit, subject from the PR title,
   empty body. The repository allows merge and squash, not rebase merges. GitHub
   cannot enforce the method per PR; check the source before merging.
@@ -185,6 +186,109 @@ Commit the resolved merge with
 (signed, hooks on). Push the branch and open a PR into `main` titled
 `chore: merge upstream <short SHA> into main`; the fork CI runs on PRs into
 `main`. The PR text names the upstream head it takes in.
+
+### 3a. Build a stacked sync
+
+The nightly sync job stays unchanged. It keeps the standing PR from `upstream`,
+its label and its `agx/sync-gates` status. A one-layer sync with no conflict may
+still land as the standing PR.
+
+For a larger sync, build plain stacked PRs. Each layer contains upstream merge
+commits, and each layer must pass CI on its own.
+
+```text
+1 estimate cuts -> 2 build layers -> 3 count final files before pushing
+                                           |
+4 open stacked PRs -> 5 USER GO for each merge, bottom-up
+                                           |
+6 preserve history -> 7 compare the top layer with the upstream baseline
+```
+
+1. Run the layer helper:
+
+   ```sh
+   python3 scripts/agx/sync_layers.py --base origin/main --head origin/upstream
+   ```
+
+   It reads Git only. It makes no network call and changes no ref. Its counts
+   are upstream-only estimates, not final PR counts. They exclude `*.lock` and
+   count a rename as two paths. Each cut is the farthest first-parent commit
+   that fits within 140 files, even if an earlier commit exceeds 140. If no
+   later cut fits, the next commit forms its own layer, marked `over limit`.
+   Conflict resolutions and fork fixes are not included in these estimates.
+
+2. Cut `sync/<date>-1` from `main`. Cut each later `sync/<date>-<n>` from the
+   layer below it. Merge the helper's cut commit with `git merge --no-ff` and
+   title the merge commit
+   `chore: merge upstream <short SHA> into sync/<date>-<n>`.
+   Resolve conflicts and apply fork fixes in the first layer that needs them.
+   Follow the conflict and seam rules above. Each layer must pass CI on its own.
+   The seam check uses the newest upstream commit that the layer contains:
+
+   ```sh
+   python3 scripts/agx/check_seams.py --upstream origin/upstream
+   ```
+
+3. Before pushing a layer, count its final reviewable files. Use the three-dot
+   comparison that GitHub shows, against the layer below it (`main` for layer 1):
+
+   ```sh
+   python3 - '<layer below>...<layer head>' <<'EOF'
+   import subprocess, sys
+   paths = subprocess.run(
+       ["git", "diff", "--name-only", "--no-renames", "-z", sys.argv[1]],
+       check=True, stdout=subprocess.PIPE,
+   ).stdout.split(b"\0")
+   print(sum(1 for path in paths if path and not path.endswith(b".lock")))
+   EOF
+   ```
+
+   A wrong ref makes `git diff` fail, and the command then stops with an error
+   instead of printing a count.
+
+   If the count exceeds 150 and the layer holds more than one upstream commit,
+   rebuild it from an earlier cut before anything is pushed. If the layer holds
+   one upstream commit and exceeds 150, stop before pushing and ask the user to
+   choose cubic-only review or a changed layer. This stop applies whether or not
+   the helper marked the layer `over limit`. For cubic-only review, the PR must
+   say that CodeRabbit cannot review it.
+
+4. Open PR n with base layer n-1. Layer 1 has base `main`. Use the title
+   `chore: merge upstream <short SHA> into main (layer <n> of <m>)`.
+
+5. Land the layers bottom-up, one at a time, with a merge commit and the user's
+   go for each merge. Use `gh pr merge <number> -R peterkc-io/agx --merge`, never
+   squash. The repository deletes each merged branch, and GitHub moves the next
+   PR's base to `main`. That base change starts a new `agx-ci` run. Before each merge,
+   check that the PR's base is now `main` and that `agx-ci` passed on its current
+   merge candidate. A title or body edit also starts an `agx-ci` run, but its
+   `make check` job is skipped. The checks list shows it as skipped, yet GitHub
+   counts a skipped job as passing for required checks and merging. A base change
+   keeps the same head SHA, so an older run on the old base can also look like a
+   pass. Use only a run that started after the lower layer merged and whose
+   `make check` job ran:
+
+   ```sh
+   gh run list -R peterkc-io/agx --workflow agx-ci.yml --branch <layer branch> \
+     --json databaseId,headSha,createdAt,conclusion
+   gh run view <run id> -R peterkc-io/agx --json jobs
+   ```
+
+   Its `createdAt` must be later than the lower layer's merge time, and its
+   `make check` job must not be skipped. If no such run exists, ask the user
+   before you close and reopen the PR. Reopening sends the `reopened` event,
+   which starts a run.
+   Read whether CodeRabbit reviewed the PR or reported it skipped. Record a skip;
+   do not retry it.
+
+6. Never rebase, squash or use "Update branch" on a layer. Do not use
+   `gh stack rebase` or `gh stack sync`. These operations rewrite the history
+   that the next sync needs. If a layer was squashed by mistake, stop and follow
+   [Recover a squashed sync](#recover-a-squashed-sync). Never reset `main`.
+
+7. Compare the ignored-test set with the upstream baseline once, for the top
+   layer. Its tree holds the whole upstream head. Follow the baseline procedure
+   in [Checks](#4-checks).
 
 ### Recover a squashed sync
 
