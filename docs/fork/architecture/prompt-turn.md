@@ -59,9 +59,10 @@ prompt:
 
 - expands `/skill:<name>` into a skill block, in the main message and in each
   batched row;
-- runs a session command (`/compact`, `/refine`, `/goal`, `/autonomous`) without
-  calling the model. Only the main message is checked for a session command
-  here; batched rows are not;
+- runs a session command (`/compact`, `/refine`, `/goal`, `/autonomous`) locally
+  instead of sending it to the model. A `/goal` start or resume can then start a
+  model turn with its continuation message. Only the main message is checked
+  for a session command here; batched rows are not;
 - emits the accepted rows, then enters `run_turns`.
 
 `run_turns` (`agent_engine/turn/run_loop.rs`) checks whether the context needs
