@@ -212,10 +212,10 @@ Without any host, a session has no subagents.
 
 ## Skills in the kernel
 
-A skill is markdown unless it has a `pyproject.toml` and
-`src/<name>/__init__.py`, with hyphens in the name changed to underscores; then
-it is a Python skill
-(`crates/pa-core/src/skills/discovery.rs`). Markdown skills reach the model only
+A skill loaded from a `SKILL.md` file is a Python skill when its directory also
+has a `pyproject.toml` and `src/<name>/__init__.py`, with hyphens in the name
+changed to underscores. Every other skill, including a single `.md` file, is
+markdown (`crates/pa-core/src/skills/discovery.rs`). Markdown skills reach the model only
 as text: in the system prompt's skill list, or expanded by `/skill:<name>`. For
 Python skills, the engine installs changed or missing packages into the venv in
 editable mode and imports them in the bootstrap code. A skill that fails to

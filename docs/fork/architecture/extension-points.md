@@ -130,8 +130,9 @@ skills, prompt templates and themes. It does not load code modules.
 
 `load_resources` (`crates/pa-core/src/resources/mod.rs`) loads the resolved
 skills and prompt templates. Its options accept extra skill and prompt paths.
-When two skills have the same name or path, the first one wins and the collision
-is recorded. Python skills become kernel packages; markdown skills become prompt
+When two skills have the same name, the first one wins and a collision
+diagnostic is recorded. A second skill at the same real path is skipped without a
+diagnostic. Python skills become kernel packages; markdown skills become prompt
 text.
 
 ## MCP

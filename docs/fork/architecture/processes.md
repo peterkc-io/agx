@@ -135,9 +135,10 @@ falls back to `/tmp/agx-<uid>` when a worker socket path would be too long
 and then refuses any upstream socket path (`resolve_daemon_socket_path` in
 `crates/pa-cli/src/config.rs`). See [Fork overlay](fork-overlay.md#process-identity-and-sockets).
 
-The daemon discovery commands (`status`, `doctor`, `shutdown`) find daemons
-through a census of listening sockets (`crates/pa-cli/src/daemon_discovery/`).
-Every scan is limited to one `DaemonStateRoot`.
+The daemon discovery commands (`status`, `doctor`, `shutdown`) live in
+`crates/pa-cli/src/daemon_discovery/`. On Unix they take a census of listening
+sockets. On Windows, where a daemon uses one fixed named pipe, they probe that
+pipe. Every scan is limited to one `DaemonStateRoot`.
 
 ## State on disk
 

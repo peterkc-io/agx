@@ -29,9 +29,11 @@ updates, telemetry, traces      upstream      disabled in agx
 ```
 
 The two products can run side by side on one machine. They see the same
-sessions and the same base settings. They never connect to each other's daemon,
-and session leases (see [Processes and sessions](processes.md#state-on-disk))
-stop both from running one session at the same time.
+sessions and the same base settings. agx refuses the upstream daemon's known
+socket and pipe names; an upstream daemon on an unrelated custom path is not
+recognized (see [Process identity and sockets](#process-identity-and-sockets)).
+Session leases (see [Processes and sessions](processes.md#state-on-disk)) stop
+both from running one session at the same time.
 
 ## Where fork code lives
 

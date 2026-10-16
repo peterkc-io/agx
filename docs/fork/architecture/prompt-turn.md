@@ -37,10 +37,11 @@ pa-ai      stream   stream_simple -> Provider       HTTP request, SSE parsing
                     model provider (network)        <- assistant message events
 ```
 
-The split is deliberate. `pa-agent` knows nothing about providers, tools or
-sessions; it receives a stream function and a list of tools. `pa-ai` knows
-nothing about the loop. `pa-core` joins them, and `pa-daemon` drives the turn and
-owns its timing.
+The split is deliberate. `pa-agent` owns the generic loop and tool dispatch,
+but knows nothing about providers, concrete tools or sessions; it receives a
+stream function and a list of `AgentTool` values. `pa-ai` knows nothing about
+the loop. `pa-core` supplies the concrete tools and joins the two, and
+`pa-daemon` drives the turn and owns its timing.
 
 ## 1. Pickup
 
@@ -56,9 +57,11 @@ that flushes coalesced stream updates.
 (`crates/pa-daemon/src/agent_engine/session_engine_impl.rs`) prepares the
 prompt:
 
-- expands `/skill:<name>` into a skill block;
-- runs session commands (`/compact`, `/refine`, `/goal`, `/autonomous`) without
-  calling the model;
+- expands `/skill:<name>` into a skill block, in the main message and in each
+  batched row;
+- runs a session command (`/compact`, `/refine`, `/goal`, `/autonomous`) without
+  calling the model. Only the main message is checked for a session command
+  here; batched rows are not;
 - emits the accepted rows, then enters `run_turns`.
 
 `run_turns` (`agent_engine/turn/run_loop.rs`) checks whether the context needs
@@ -71,9 +74,11 @@ an empty tool list (`crates/pa-daemon/src/agent_engine/lifecycle.rs`).
 
 Inside `pa-core`, `AgentSession::prompt_with_images`
 (`crates/pa-core/src/session_engine/admission.rs`) expands skills and prompt
-templates. If a run is already active, the prompt must be a steering or
-follow-up message; otherwise it is refused. An idle session admits, in order,
-any pending harness digest, next-turn rows, the user row and batched user rows.
+templates, then checks the result for a session command again. A match returns
+`PromptOutcome::SessionCommand` before the busy check. If a run is already
+active, the prompt must be a steering or follow-up message; otherwise it is
+refused. An idle session admits, in order, any pending harness digest, next-turn
+rows, the user row and batched user rows.
 
 ## 3. System prompt
 

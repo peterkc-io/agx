@@ -162,8 +162,10 @@ the code.
   Wire types that both the daemon and the UI need live there.
 - **The UI does not link the engine.** `pa-tui` depends only on `pa-types`. It
   renders daemon events and sends user intents as daemon commands.
-- **`pa-cli` composes; it holds no business logic.** It wires crates together
-  and starts processes.
+- **`pa-cli` is the composition root.** It wires crates together and starts
+  processes. `AGENTS.md` says it holds no business logic, but it does own the
+  CLI's own commands, such as login flows, daemon discovery and the update
+  refusal.
 - **One worker process per active session.** The supervisor holds registry and
   routing state, not session engines.
 - **One run at a time per session.** The agent rejects a second concurrent run.
