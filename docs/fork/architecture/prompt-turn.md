@@ -62,7 +62,8 @@ prompt:
 - runs a session command (`/compact`, `/refine`, `/goal`, `/autonomous`) locally
   instead of sending it to the model. A `/goal` start or resume can then start a
   model turn with its continuation message. Only the main message is checked
-  for a session command here; batched rows are not;
+  for a session command. Batched rows are not checked: they reach the model as
+  ordinary user messages, even when their text looks like a command;
 - emits the accepted rows, then enters `run_turns`.
 
 `run_turns` (`agent_engine/turn/run_loop.rs`) checks whether the context needs
@@ -79,7 +80,8 @@ templates, then checks the result for a session command again. A match returns
 `PromptOutcome::SessionCommand` before the busy check. If a run is already
 active, the prompt must be a steering or follow-up message; otherwise it is
 refused. An idle session admits, in order, any pending harness digest, next-turn
-rows, the user row and batched user rows.
+rows, the user row and batched user rows. Batched rows get skill and template
+expansion here, but no session-command check.
 
 ## 3. System prompt
 
