@@ -234,11 +234,15 @@ def prepare(repo, remote, upstream):
     try:
         if mirror != head:
             push_mirror(remote, head, token)
-        owner = repo.split("/")[0]
-        prs = list_items(
-            repo, f"pulls?state=open&base=main&head={owner}:upstream"
-            "&per_page=100",
-        )
+        # GitHub's head filter returns no PRs in this fork, so match the
+        # head repository and branch here.
+        prs = [
+            pr for pr in list_items(
+                repo, "pulls?state=open&base=main&per_page=100",
+            )
+            if (pr["head"].get("repo") or {}).get("full_name") == repo
+            and pr["head"]["ref"] == "upstream"
+        ]
         if len(prs) > 1:
             raise RuntimeError(
                 "Multiple standing sync PRs; refusing to create another."

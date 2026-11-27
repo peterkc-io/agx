@@ -54,10 +54,10 @@ if method == "GET":
         print(json.dumps(state.get("closed_pr_pages", [[]])))
         sys.exit(0)
     if route == "pulls":
-        result = [
+        # Like GitHub in a fork, a head filter matches no PR.
+        result = [] if "head" in query else [
             pr for pr in state["prs"] if pr["state"] == query["state"][0]
             and pr["base"] == query["base"][0]
-            and pr["head"] == query["head"][0]
         ]
     elif route == "labels":
         result = state["labels"]
@@ -73,7 +73,8 @@ if method == "GET":
         result = [result]
 elif route == "pulls":
     result = {
-        **payload, "head": "tester:upstream",
+        **payload,
+        "head": {"ref": payload["head"], "repo": {"full_name": "tester/agx"}},
         "number": len(state["prs"]) + 1, "state": "open", "labels": [],
     }
     state["prs"].append(result)
@@ -272,10 +273,14 @@ class SyncTests(unittest.TestCase):
             for line in self.output_path.read_text().splitlines()
         )
 
-    def open_pr(self):
+    def open_pr(self, number=7, branch="upstream", head_repo="tester/agx"):
         return {
-            "number": 7, "state": "open", "base": "main",
-            "head": "tester:upstream", "labels": [],
+            "number": number, "state": "open", "base": "main",
+            "head": {
+                "ref": branch,
+                "repo": {"full_name": head_repo} if head_repo else None,
+            },
+            "labels": [],
         }
 
     def test_behind_fast_forwards_once(self):
@@ -401,6 +406,26 @@ class SyncTests(unittest.TestCase):
         self.sync()
         self.assertEqual(self.state()["prs"], [self.open_pr()])
         self.assertEqual(self.writes(), [])
+
+    def test_other_open_prs_are_not_the_sync_pr(self):
+        self.upstream_change()
+        state = self.state()
+        others = [
+            self.open_pr(3, "agx/bazel"),
+            self.open_pr(4, "upstream", "contributor/agx"),
+            self.open_pr(5, "upstream", None),
+        ]
+        state["prs"] = [*others, self.open_pr()]
+        self.save_state(state)
+        self.sync()
+        self.assertEqual(self.writes(), [])
+        state["prs"] = others
+        self.save_state(state)
+        self.sync()
+        self.assertEqual(
+            [call["endpoint"] for call in self.writes()],
+            ["repos/tester/agx/pulls"],
+        )
 
     def test_format_notice_is_edited_across_syncs(self):
         first_path = "crates/pa-core/src/session/nested/state.rs"
